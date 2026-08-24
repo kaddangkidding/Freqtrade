@@ -3,35 +3,67 @@ import { Header } from './components/Header';
 import { FlowMatrixRadar } from './components/FlowMatrixRadar';
 import { CvdChart } from './components/CvdChart';
 import { FreqtradePanel } from './components/FreqtradePanel';
-import { fetchFlowMatrix } from './services/api';
+import { fetchFlowMatrix, INITIAL_FLOW_DATA } from './services/api';
 import type { FlowMarketData } from './types/flow';
 
 export function App() {
-  const [data, setData] = useState<FlowMarketData[]>([]);
+  const [data, setData] = useState<FlowMarketData[]>(INITIAL_FLOW_DATA);
   const [selectedSymbol, setSelectedSymbol] = useState<string>('BTCUSDT');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<string>(new Date().toLocaleTimeString());
 
   const loadData = async () => {
-    setIsLoading(true);
     try {
       const items = await fetchFlowMatrix();
-      setData(items);
-      setLastUpdated(new Date().toLocaleTimeString());
+      if (items && items.length > 0) {
+        setData(items);
+        setLastUpdated(new Date().toLocaleTimeString());
+      }
     } catch (e) {
-      console.error(e);
-    } finally {
-      setIsLoading(false);
+      console.error('Error fetching flow matrix:', e);
     }
   };
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 5000);
-    return () => clearInterval(interval);
+    const interval = setInterval(loadData, 3000);
+    let ws: WebSocket | null = null;
+    try {
+      ws = new WebSocket('wss://fstream.binance.com/ws/!miniTicker@arr');
+      ws.onmessage = (event) => {
+        try {
+          const rawTickers = JSON.parse(event.data);
+          if (Array.isArray(rawTickers)) {
+            setData((prevData) => {
+              const updated = [...prevData];
+              let hasChanges = false;
+              for (const tick of rawTickers) {
+                const idx = updated.findIndex((d) => d.symbol === tick.s);
+                if (idx !== -1) {
+                  const newPrice = parseFloat(tick.c);
+                  if (newPrice && newPrice !== updated[idx].current_price) {
+                    updated[idx] = {
+                      ...updated[idx],
+                      current_price: newPrice,
+                      timestamp: new Date().toLocaleTimeString(),
+                    };
+                    hasChanges = true;
+                  }
+                }
+              }
+              return hasChanges ? updated : prevData;
+            });
+          }
+        } catch (err) {}
+      };
+    } catch (err) {}
+    return () => {
+      clearInterval(interval);
+      if (ws) ws.close();
+    };
   }, []);
 
-  const selectedItem = data.find((d) => d.symbol === selectedSymbol) || data[0] || null;
+  const selectedItem = data.find((d) => d.symbol === selectedSymbol) || data[0] || INITIAL_FLOW_DATA[0];
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-6 font-sans antialiased">
