@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Header } from './components/Header';
 import { PortfolioHeader } from './components/PortfolioHeader';
 import { ActivePositionsList } from './components/ActivePositionsList';
+import { AccountGrowthChart } from './components/AccountGrowthChart';
+import { PnlDailyCalendar } from './components/PnlDailyCalendar';
+import { TradeHistoryResults } from './components/TradeHistoryResults';
 import { FlowMatrixRadar } from './components/FlowMatrixRadar';
 import { CvdChart } from './components/CvdChart';
 import { FreqtradePanel } from './components/FreqtradePanel';
@@ -17,7 +20,6 @@ export function App() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<string>(new Date().toLocaleTimeString());
 
-  // Load account & all 300+ markets
   const loadAllData = async () => {
     try {
       const [accRes, coinsRes] = await Promise.all([
@@ -44,7 +46,6 @@ export function App() {
     loadAllData();
     const interval = setInterval(loadAllData, 4000);
 
-    // Direct Binance WebSocket for high-frequency price updates
     let ws: WebSocket | null = null;
     try {
       ws = new WebSocket('wss://fstream.binance.com/ws/!miniTicker@arr');
@@ -88,20 +89,29 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-6 font-sans antialiased">
-      <div className="max-w-[1600px] mx-auto space-y-5">
-        {/* Header */}
+      <div className="max-w-[1600px] mx-auto space-y-6">
+        {/* 1. Header */}
         <Header lastUpdated={lastUpdated} onRefresh={loadAllData} isLoading={isLoading} />
 
-        {/* 1. Real Portfolio & Realized PnL Hero Cards */}
+        {/* 2. Hero Portfolio & Realized PnL Overview */}
         <PortfolioHeader account={account} activeCount={activePositions.length} />
 
-        {/* 2. Active Live Positions */}
+        {/* 3. Active Live Positions */}
         {activePositions.length > 0 && <ActivePositionsList positions={activePositions} />}
 
-        {/* 3. Full-Market 300+ Coin 10-Point Scoring Scanner */}
+        {/* 4. Graphic Portfolio Growth & Equity Curve */}
+        <AccountGrowthChart account={account} records={incomeRecords} />
+
+        {/* 5. Daily PnL Calendar Performance */}
+        <PnlDailyCalendar records={incomeRecords} />
+
+        {/* 6. Realized Trade Results History */}
+        <TradeHistoryResults records={incomeRecords} />
+
+        {/* 7. Full-Market 300+ Coin 10-Point Scoring Scanner */}
         <FlowMatrixRadar data={data} selectedSymbol={selectedSymbol} onSelectSymbol={setSelectedSymbol} />
 
-        {/* 4. Interactive CVD Chart & Freqtrade Panel */}
+        {/* 8. Interactive CVD Chart & Freqtrade Panel */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
           <div className="xl:col-span-2">
             <CvdChart selectedItem={selectedItem} />

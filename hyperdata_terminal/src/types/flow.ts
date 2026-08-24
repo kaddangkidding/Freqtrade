@@ -59,5 +59,7 @@ export interface IncomeRecord {
   income: number;
   asset: string;
   time: string;
+  date: string;
+  timestamp: number;
   tradeId: string;
 }
