@@ -1,13 +1,15 @@
 import React from 'react';
-import { Bot, RefreshCw } from 'lucide-react';
+import { Bot, RefreshCw, Zap } from 'lucide-react';
 
 interface Props {
   lastUpdated: string;
   onRefresh: () => void;
   isLoading: boolean;
+  tickCount?: number;
+  ticksPerSec?: number;
 }
 
-export const Header: React.FC<Props> = ({ lastUpdated, onRefresh, isLoading }) => {
+export const Header: React.FC<Props> = ({ lastUpdated, onRefresh, isLoading, tickCount = 0, ticksPerSec = 12 }) => {
   return (
     <header className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-5 border-b border-slate-800/80">
       <div className="flex items-center gap-3">
@@ -31,10 +33,13 @@ export const Header: React.FC<Props> = ({ lastUpdated, onRefresh, isLoading }) =
           <span className="font-bold text-slate-200">Freqtrade:</span>
           <span className="text-emerald-400 font-extrabold">24/7 ACTIVE</span>
         </div>
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="font-semibold text-white">Binance Futures Sync</span>
-          <span className="text-slate-500 text-[10px]">&bull; {lastUpdated}</span>
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 border border-emerald-500/30 rounded-xl">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+          <span className="font-bold text-emerald-400 flex items-center gap-1">
+            <Zap className="w-3.5 h-3.5 fill-emerald-400" />
+            {ticksPerSec} Ticks/sec
+          </span>
+          <span className="text-slate-500 text-[10px]">&bull; Ultra-Low Latency Direct FStream</span>
         </div>
         <button onClick={onRefresh} className="p-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl transition-all" title="Refresh Flow Data">
           <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-cyan-400' : ''}`} />

@@ -4,11 +4,10 @@ import { ArrowDownRight, ArrowUpRight, DollarSign, Lock, Radio, Shield, Target, 
 
 interface Props {
   positions: ActivePosition[];
+  tickDirection?: Record<string, 'UP' | 'DOWN' | 'NONE'>;
 }
 
-export const ActivePositionsList: React.FC<Props> = ({ positions }) => {
-  const [showDemo, setShowDemo] = useState<boolean>(false);
-
+export const ActivePositionsList: React.FC<Props> = ({ positions, tickDirection = {} }) => {
   const displayPositions = positions;
 
   const totalUnrealized = displayPositions.reduce((sum, p) => sum + p.unrealizedPnl, 0);
@@ -47,7 +46,7 @@ export const ActivePositionsList: React.FC<Props> = ({ positions }) => {
               </span>
             </div>
             <p className="text-xs text-slate-400 font-medium">
-              Sub-second mark price updates, dynamic 1.5x ATR stops & multi-target trailing engine
+              Ultra-high frequency trade stream &bull; 10-50 ticks/sec &bull; Dynamic ATR trailing
             </p>
           </div>
         </div>
@@ -63,7 +62,7 @@ export const ActivePositionsList: React.FC<Props> = ({ positions }) => {
               <div className="w-px h-6 bg-slate-800" />
               <div>
                 <span className="text-slate-500 block text-[10px] uppercase">Floating Live PnL</span>
-                <span className={`text-sm font-black ${totalUnrealized >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                <span className={`text-sm font-black transition-colors duration-200 ${totalUnrealized >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                   {formatPnl(totalUnrealized)}
                 </span>
               </div>
@@ -88,14 +87,19 @@ export const ActivePositionsList: React.FC<Props> = ({ positions }) => {
           {displayPositions.map((pos) => {
             const isLong = pos.direction === 'LONG';
             const isProfit = pos.unrealizedPnl >= 0;
+            const tickDir = tickDirection[pos.symbol] || 'NONE';
 
             return (
               <div
                 key={pos.symbol}
-                className={`rounded-2xl border p-4 transition-all duration-300 ${
-                  isProfit
-                    ? 'bg-slate-950 border-emerald-500/40 shadow-xl shadow-emerald-950/20 ring-1 ring-emerald-500/20'
-                    : 'bg-slate-950 border-rose-500/40 shadow-xl shadow-rose-950/20 ring-1 ring-rose-500/20'
+                className={`rounded-2xl border p-4 transition-all duration-200 relative overflow-hidden ${
+                  tickDir === 'UP'
+                    ? 'bg-emerald-950/30 border-emerald-400 shadow-xl shadow-emerald-950/40 ring-2 ring-emerald-500/30'
+                    : tickDir === 'DOWN'
+                    ? 'bg-rose-950/30 border-rose-400 shadow-xl shadow-rose-950/40 ring-2 ring-rose-500/30'
+                    : isProfit
+                    ? 'bg-slate-950 border-emerald-500/40 shadow-lg shadow-emerald-950/20'
+                    : 'bg-slate-950 border-rose-500/40 shadow-lg shadow-rose-950/20'
                 }`}
               >
                 {/* Header: Pair, Direction, ROE % */}
@@ -115,10 +119,26 @@ export const ActivePositionsList: React.FC<Props> = ({ positions }) => {
                     <span className="px-2 py-0.5 rounded text-xs font-black bg-amber-500/15 text-amber-300 border border-amber-500/30">
                       {pos.leverage}x
                     </span>
+                    {tickDir === 'UP' && (
+                      <span className="text-[10px] font-black text-emerald-400 animate-bounce">▲</span>
+                    )}
+                    {tickDir === 'DOWN' && (
+                      <span className="text-[10px] font-black text-rose-400 animate-bounce">▼</span>
+                    )}
                   </div>
 
                   <div className="text-right font-mono">
-                    <div className={`text-xl font-black ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    <div
+                      className={`text-xl font-black transition-colors duration-150 ${
+                        tickDir === 'UP'
+                          ? 'text-emerald-300'
+                          : tickDir === 'DOWN'
+                          ? 'text-rose-300'
+                          : isProfit
+                          ? 'text-emerald-400'
+                          : 'text-rose-400'
+                      }`}
+                    >
                       {formatPnl(pos.unrealizedPnl)}
                     </div>
                     <div className={`text-xs font-bold ${isProfit ? 'text-emerald-300' : 'text-rose-300'}`}>
@@ -133,9 +153,17 @@ export const ActivePositionsList: React.FC<Props> = ({ positions }) => {
                     <span className="text-[10px] text-slate-500 block uppercase">Entry Price</span>
                     <span className="text-white font-bold">${formatPrice(pos.entryPrice)}</span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 block uppercase flex items-center justify-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                  <div
+                    className={`rounded-lg p-1 transition-colors duration-150 ${
+                      tickDir === 'UP'
+                        ? 'bg-emerald-500/20'
+                        : tickDir === 'DOWN'
+                        ? 'bg-rose-500/20'
+                        : 'bg-transparent'
+                    }`}
+                  >
+                    <span className="text-[10px] text-slate-400 block uppercase flex items-center justify-center gap-1">
+                      <span className={`w-1.5 h-1.5 rounded-full ${tickDir === 'UP' ? 'bg-emerald-400' : tickDir === 'DOWN' ? 'bg-rose-400' : 'bg-cyan-400'} animate-pulse`} />
                       Mark Price
                     </span>
                     <span className={`font-black ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>
