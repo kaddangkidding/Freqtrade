@@ -228,7 +228,7 @@ export function App() {
         />
 
         {/* 2. Real-Time Hero Portfolio & Realized PnL Overview (100% Exact Floating Sum) */}
-        <PortfolioHeader account={account} activePositions={activePositions} />
+        <PortfolioHeader account={account} activePositions={activePositions} records={incomeRecords} />
 
         {/* 3. Dedicated Real-Time Open Positions Monitor with Live Tick Flashing */}
         <ActivePositionsList positions={activePositions} tickDirection={tickDirection} />
