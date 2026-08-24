@@ -6,7 +6,7 @@ import { AccountGrowthChart } from './components/AccountGrowthChart';
 import { PnlDailyCalendar } from './components/PnlDailyCalendar';
 import { TradeHistoryResults } from './components/TradeHistoryResults';
 import { FlowMatrixRadar } from './components/FlowMatrixRadar';
-import { CvdChart } from './components/CvdChart';
+import { OrderFlowDepthViewer } from './components/OrderFlowDepthViewer';
 import { FreqtradePanel } from './components/FreqtradePanel';
 import { fetchAccountData, fetchAllMarketCoins, DEFAULT_ACCOUNT } from './services/api';
 import type { FlowMarketData, AccountPortfolio, ActivePosition, IncomeRecord } from './types/flow';
@@ -44,7 +44,7 @@ export function App() {
 
   useEffect(() => {
     loadAllData();
-    const interval = setInterval(loadAllData, 4000);
+    const interval = setInterval(loadAllData, 3000);
 
     let ws: WebSocket | null = null;
     try {
@@ -96,10 +96,10 @@ export function App() {
         {/* 2. Hero Portfolio & Realized PnL Overview */}
         <PortfolioHeader account={account} activeCount={activePositions.length} />
 
-        {/* 3. Active Live Positions */}
-        {activePositions.length > 0 && <ActivePositionsList positions={activePositions} />}
+        {/* 3. Dedicated Real-Time Open Positions Monitor */}
+        <ActivePositionsList positions={activePositions} />
 
-        {/* 4. Graphic Portfolio Growth & Equity Curve */}
+        {/* 4. Redesigned Institutional Portfolio Growth Chart & Equity Curve */}
         <AccountGrowthChart account={account} records={incomeRecords} />
 
         {/* 5. Daily PnL Calendar Performance */}
@@ -111,10 +111,10 @@ export function App() {
         {/* 7. Full-Market 300+ Coin 10-Point Scoring Scanner */}
         <FlowMatrixRadar data={data} selectedSymbol={selectedSymbol} onSelectSymbol={setSelectedSymbol} />
 
-        {/* 8. Interactive CVD Chart & Freqtrade Panel */}
+        {/* 8. Dynamic Selected Coin Order Flow & Freqtrade Controller */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
           <div className="xl:col-span-2">
-            <CvdChart selectedItem={selectedItem} />
+            <OrderFlowDepthViewer selectedItem={selectedItem} />
           </div>
           <div className="xl:col-span-1">
             <FreqtradePanel />
