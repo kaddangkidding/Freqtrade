@@ -6,7 +6,6 @@ import { AccountGrowthChart } from './components/AccountGrowthChart';
 import { PnlDailyCalendar } from './components/PnlDailyCalendar';
 import { TradeHistoryResults } from './components/TradeHistoryResults';
 import { FlowMatrixRadar } from './components/FlowMatrixRadar';
-import { OrderFlowDepthViewer } from './components/OrderFlowDepthViewer';
 import { FreqtradePanel } from './components/FreqtradePanel';
 import { fetchAccountData, fetchAllMarketCoins, DEFAULT_ACCOUNT } from './services/api';
 import type { FlowMarketData, AccountPortfolio, ActivePosition, IncomeRecord } from './types/flow';
@@ -85,8 +84,6 @@ export function App() {
     };
   }, []);
 
-  const selectedItem = data.find((d) => d.symbol === selectedSymbol) || data[0] || null;
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-6 font-sans antialiased">
       <div className="max-w-[1600px] mx-auto space-y-6">
@@ -99,7 +96,7 @@ export function App() {
         {/* 3. Dedicated Real-Time Open Positions Monitor */}
         <ActivePositionsList positions={activePositions} />
 
-        {/* 4. Redesigned Institutional Portfolio Growth Chart & Equity Curve */}
+        {/* 4. Institutional Portfolio Growth Graphic & Equity Curve */}
         <AccountGrowthChart account={account} records={incomeRecords} />
 
         {/* 5. Daily PnL Calendar Performance */}
@@ -111,15 +108,8 @@ export function App() {
         {/* 7. Full-Market 300+ Coin 10-Point Scoring Scanner */}
         <FlowMatrixRadar data={data} selectedSymbol={selectedSymbol} onSelectSymbol={setSelectedSymbol} />
 
-        {/* 8. Dynamic Selected Coin Order Flow & Freqtrade Controller */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-          <div className="xl:col-span-2">
-            <OrderFlowDepthViewer selectedItem={selectedItem} />
-          </div>
-          <div className="xl:col-span-1">
-            <FreqtradePanel />
-          </div>
-        </div>
+        {/* 8. Freqtrade Engine Controller Stream */}
+        <FreqtradePanel />
       </div>
     </div>
   );
