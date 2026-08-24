@@ -317,11 +317,10 @@ class SMCLiquidityBot:
                 tickers = json.loads(r.read().decode())
 
             # 1. Deep Liquidity Filter: Only USDT Perpetual pairs with >= $25M volume
-            # Only pure crypto perpetual pairs with deep liquidity (>= $25M volume)
+            # Strict Pure Crypto Whitelist Only (Excludes all synthetic stock/equity perps)
             usdt_tickers = [
                 t for t in tickers 
-                if (t["symbol"] in CRYPTO_SYMBOLS or t["symbol"].endswith("USDT"))
-                and not t["symbol"].startswith(("SOXL", "KORU", "SPCX", "SNXX", "SAMSUNG", "SKHY", "DRAM", "MSTR", "NVDA", "TSLA", "AAPL", "SOXS", "EWY", "INTC", "MUU", "NBIS", "AMZN", "GOOGL", "META", "MSFT", "PLTR", "ARM", "AMD"))
+                if t["symbol"] in CRYPTO_SYMBOLS
                 and float(t.get("quoteVolume", 0)) >= self.min_volume_usd
             ][:45]
 
