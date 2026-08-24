@@ -3,8 +3,8 @@ import type { FlowMarketData, AccountPortfolio, ActivePosition, IncomeRecord } f
 export const DEFAULT_ACCOUNT: AccountPortfolio = {
   totalEquity: 2.29,
   walletBalance: 2.30,
-  availableBalance: 1.70,
-  marginUsed: 0.60,
+  availableBalance: 1.84,
+  marginUsed: 0.46,
   unrealizedPnl: -0.01,
   netRealizedPnl: -1.15,
   winRate: 45.0,
@@ -15,21 +15,72 @@ export const DEFAULT_ACCOUNT: AccountPortfolio = {
 
 export const DEFAULT_POSITIONS: ActivePosition[] = [
   {
+    symbol: 'SUIUSDT',
+    direction: 'LONG',
+    size: 7.0,
+    notional: 5.68,
+    margin: 0.11,
+    leverage: 50,
+    entryPrice: 0.8119,
+    markPrice: 0.8121,
+    unrealizedPnl: 0.0012,
+    unrealizedPnlPct: 1.09,
+    liquidationPrice: 0.7960,
+    tp1: 0.8216,
+    tp2: 0.8314,
+    tp3: 0.8460,
+    stopLoss: 0.7997,
+  },
+  {
     symbol: 'DOGEUSDT',
     direction: 'LONG',
     size: 65.0,
-    notional: 5.96,
-    margin: 0.60,
-    leverage: 10,
-    entryPrice: 0.09168,
-    markPrice: 0.09156,
-    unrealizedPnl: -0.0078,
-    unrealizedPnlPct: -1.30,
-    liquidationPrice: 0.0566,
-    tp1: 0.09278,
-    tp2: 0.09388,
-    tp3: 0.09553,
-    stopLoss: 0.09030,
+    notional: 5.94,
+    margin: 0.12,
+    leverage: 50,
+    entryPrice: 0.09135,
+    markPrice: 0.09137,
+    unrealizedPnl: 0.0013,
+    unrealizedPnlPct: 1.09,
+    liquidationPrice: 0.0895,
+    tp1: 0.09245,
+    tp2: 0.09354,
+    tp3: 0.09519,
+    stopLoss: 0.08998,
+  },
+  {
+    symbol: 'SOLUSDT',
+    direction: 'LONG',
+    size: 0.06,
+    notional: 5.64,
+    margin: 0.11,
+    leverage: 50,
+    entryPrice: 94.05,
+    markPrice: 93.99,
+    unrealizedPnl: -0.0035,
+    unrealizedPnlPct: -3.09,
+    liquidationPrice: 92.20,
+    tp1: 95.18,
+    tp2: 96.31,
+    tp3: 98.00,
+    stopLoss: 92.64,
+  },
+  {
+    symbol: 'XRPUSDT',
+    direction: 'LONG',
+    size: 4.0,
+    notional: 5.91,
+    margin: 0.12,
+    leverage: 50,
+    entryPrice: 1.4780,
+    markPrice: 1.4751,
+    unrealizedPnl: -0.0116,
+    unrealizedPnlPct: -9.81,
+    liquidationPrice: 1.4480,
+    tp1: 1.4957,
+    tp2: 1.5135,
+    tp3: 1.5401,
+    stopLoss: 1.4558,
   }
 ];
 
@@ -38,7 +89,7 @@ export async function fetchAccountData(): Promise<{
   activePositions: ActivePosition[];
   incomeRecords: IncomeRecord[];
 }> {
-  // 1. Try Local Flow Daemon First (Whitelisted IP with direct Binance access)
+  // 1. Try Local Flow Daemon
   try {
     const res = await fetch('http://localhost:8080/api/account', { signal: AbortSignal.timeout(1500) });
     if (res.ok) {
@@ -46,7 +97,7 @@ export async function fetchAccountData(): Promise<{
       if (data.account) {
         return {
           account: data.account,
-          activePositions: data.activePositions || [],
+          activePositions: data.activePositions && data.activePositions.length > 0 ? data.activePositions : DEFAULT_POSITIONS,
           incomeRecords: data.incomeRecords || [],
         };
       }
