@@ -147,7 +147,7 @@ export function App() {
 
   useEffect(() => {
     loadBaseAccount(true);
-    const accountPoll = setInterval(() => loadBaseAccount(false), 2000);
+    const accountPoll = setInterval(() => loadBaseAccount(false), 10000); // Refresh every 10 seconds
 
     // Speedometer: calculate ticks/sec every second
     const speedTimer = setInterval(() => {
