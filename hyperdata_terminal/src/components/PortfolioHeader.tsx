@@ -1,13 +1,14 @@
 import React from 'react';
 import type { AccountPortfolio } from '../types/flow';
-import { ArrowDownRight, ArrowUpRight, Bot, DollarSign, PieChart, ShieldCheck, TrendingUp, Wallet } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Bot, DollarSign, PieChart, ShieldCheck, TrendingUp, Wallet, Zap } from 'lucide-react';
 
 interface Props {
   account: AccountPortfolio;
   activeCount: number;
+  isLiveTicking?: boolean;
 }
 
-export const PortfolioHeader: React.FC<Props> = ({ account, activeCount }) => {
+export const PortfolioHeader: React.FC<Props> = ({ account, activeCount, isLiveTicking = true }) => {
   const isRealizedPositive = account.netRealizedPnl >= 0;
   const isUnrealizedPositive = account.unrealizedPnl >= 0;
 
@@ -27,7 +28,10 @@ export const PortfolioHeader: React.FC<Props> = ({ account, activeCount }) => {
           }`}
         />
         <div className="flex items-center justify-between text-slate-400">
-          <span className="text-xs font-bold uppercase tracking-wider">Today Realized PnL</span>
+          <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            Today Realized PnL
+          </span>
           <div
             className={`p-1.5 rounded-lg ${
               isRealizedPositive ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
@@ -44,34 +48,38 @@ export const PortfolioHeader: React.FC<Props> = ({ account, activeCount }) => {
           {isRealizedPositive ? '+' : ''}${account.netRealizedPnl.toFixed(2)}
         </div>
         <div className="text-xs font-bold text-slate-400 mt-1">
-          {account.winTrades} Wins / {account.loseTrades} Losses &bull; Closed Trades
+          {account.winTrades} Wins / {account.loseTrades} Losses &bull; {account.totalTrades} Total Closed
         </div>
       </div>
 
-      {/* 2. Floating Unrealized PnL */}
+      {/* 2. Floating Unrealized PnL (Live Sub-Second Tick) */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col gap-1 shadow-sm">
         <div className="flex items-center justify-between text-slate-400">
-          <span className="text-xs font-bold uppercase tracking-wider">Unrealized PnL</span>
+          <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${isUnrealizedPositive ? 'bg-emerald-400' : 'bg-amber-400'} animate-ping`} />
+            Unrealized Live PnL
+          </span>
           <div className="p-1.5 bg-amber-500/10 text-amber-400 rounded-lg">
             <TrendingUp className="w-4 h-4" />
           </div>
         </div>
         <div
-          className={`text-3xl sm:text-4xl font-black tracking-tight ${
-            isUnrealizedPositive ? 'text-amber-400' : 'text-rose-400'
+          className={`text-3xl sm:text-4xl font-black tracking-tight transition-colors duration-300 ${
+            isUnrealizedPositive ? 'text-emerald-400' : account.unrealizedPnl === 0 ? 'text-slate-300' : 'text-rose-400'
           }`}
         >
-          {isUnrealizedPositive ? '+' : ''}${account.unrealizedPnl.toFixed(2)}
+          {isUnrealizedPositive && account.unrealizedPnl !== 0 ? '+' : ''}${account.unrealizedPnl.toFixed(4)}
         </div>
-        <div className="text-xs font-bold text-slate-400 mt-1">
-          {activeCount} Active Open Position{activeCount !== 1 ? 's' : ''}
+        <div className="text-xs font-bold text-slate-400 mt-1 flex items-center gap-1">
+          <span className="text-amber-400 font-extrabold">{activeCount} Active Contract{activeCount !== 1 ? 's' : ''}</span>
+          <span className="text-slate-500">&bull; Live WebSocket Sync</span>
         </div>
       </div>
 
-      {/* 3. Total Equity & Wallet Balance */}
+      {/* 3. Total Equity & Wallet Balance (Live Computed) */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col gap-1 shadow-sm">
         <div className="flex items-center justify-between text-slate-400">
-          <span className="text-xs font-bold uppercase tracking-wider">Futures Equity</span>
+          <span className="text-xs font-bold uppercase tracking-wider">Live Futures Equity</span>
           <div className="p-1.5 bg-cyan-500/10 text-cyan-400 rounded-lg">
             <Wallet className="w-4 h-4" />
           </div>
@@ -80,11 +88,11 @@ export const PortfolioHeader: React.FC<Props> = ({ account, activeCount }) => {
           ${account.totalEquity.toFixed(2)}
         </div>
         <div className="text-xs font-bold text-slate-400 mt-1">
-          Free: <span className="text-emerald-400">${account.availableBalance.toFixed(2)}</span> &bull; Used: <span className="text-amber-400">${account.marginUsed.toFixed(2)}</span>
+          Free: <span className="text-emerald-400">${account.availableBalance.toFixed(2)}</span> &bull; Margin: <span className="text-amber-400">${account.marginUsed.toFixed(2)}</span>
         </div>
       </div>
 
-      {/* 4. Win Rate & Bot Status */}
+      {/* 4. Win Rate & Bot Status (Real-time Updated) */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col gap-1 shadow-sm">
         <div className="flex items-center justify-between text-slate-400">
           <span className="text-xs font-bold uppercase tracking-wider">Bot Win Rate</span>
@@ -97,7 +105,7 @@ export const PortfolioHeader: React.FC<Props> = ({ account, activeCount }) => {
         </div>
         <div className="text-xs font-bold text-slate-400 mt-1 flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-emerald-400 font-extrabold">Freqtrade 24/7 Autopilot</span>
+          <span className="text-emerald-400 font-extrabold">24/7 Autopilot Scanning</span>
         </div>
       </div>
     </div>
