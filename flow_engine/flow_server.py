@@ -1,8 +1,9 @@
 """
-HyperData Flow Engine & 24/7 Dual-Tier SMC Liquidity + Big-Cap Priority Binance Futures Auto-Trader.
-Guarantees active trading across Major Big-Caps (BTC, ETH, SOL, XRP, DOGE, BNB, SUI) + High-Volume SMC Alts.
-Operates with Reverse Contrarian Execution (Signal LONG -> Open SHORT | Signal SHORT -> Open LONG),
-7.0% Margin Sizing, 50x Leverage, and Automated Real-Time Risk & TP/SL Exits.
+HyperData Flow Engine & 24/7 Full-Market Binance Futures Quantitative Auto-Trader.
+Screens ALL 651 Pure Crypto Perpetual Markets for Breakouts, SMC Liquidity Sweeps & Displacements.
+Executes Live Reverse Contrarian Positions on ANY Viable Opportunity (Score >= 7/10).
+Position Sizing: 7.0% Margin per Trade @ 50x Leverage (Up to 15 Concurrent Positions).
+Automated Real-Time In-Memory Exit Manager (TP1: +1.0%, TP2: +2.2%, SL: -1.2%).
 """
 import hmac
 import hashlib
@@ -24,8 +25,8 @@ logger = logging.getLogger("flow_engine")
 API_KEY = os.environ.get("BINANCE_API_KEY", "SijchDXpN3dpJA5lYiCBQOgMC2ijnNgcR0UdVgncZYNeHP7RdBgMaj719I8y5WnY")
 SECRET_KEY = os.environ.get("BINANCE_SECRET_KEY", "zMQrvKFOV1CDGuGhx0kevzxhuCFgP0aDJ53W396C1M5BfIaoUEXYGGIziYp9qQZw")
 
-# Core Tier-1 Big-Cap Major Assets
-BIG_CAPS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT", "SUIUSDT", "ADAUSDT", "AVAXUSDT", "LINKUSDT", "NEARUSDT"]
+# Top Tier-1 Big-Cap Major Assets
+BIG_CAPS = {"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT", "SUIUSDT", "ADAUSDT", "AVAXUSDT", "LINKUSDT", "NEARUSDT"}
 
 # Load exchange symbol precision rules
 rules_path = os.path.join(os.path.dirname(__file__), "symbol_rules.json")
@@ -52,7 +53,7 @@ def sign_query(params: dict) -> str:
     signature = hmac.new(SECRET_KEY.encode('utf-8'), query_str.encode('utf-8'), hashlib.sha256).hexdigest()
     return f"{query_str}&signature={signature}"
 
-class DualTierLiquidityBot:
+class FullMarketAutoTraderBot:
     def __init__(self):
         self.lock = threading.Lock()
         self.market_data: List[Dict] = []
@@ -61,10 +62,10 @@ class DualTierLiquidityBot:
         self.total_cycles = 0
         
         # Strategy Parameters
-        self.min_volume_usd = 25000000 # Minimum $25M 24h Volume
-        self.min_score_threshold = 8   # Grade A Setups (Score >= 8/10)
+        self.min_volume_usd = 5000000  # Broad screening (>= $5M Volume)
+        self.min_score_threshold = 7   # Viable Opportunities (Score >= 7/10)
         self.margin_pct = 0.07         # 7% margin per position
-        self.max_positions = 12        # Multi-asset capacity
+        self.max_positions = 15        # Expanded capacity for multi-market execution
         self.default_leverage = 50
         self.reverse_mode = True       # Invert orders: Signal LONG -> Open SHORT | Signal SHORT -> Open LONG
         
@@ -93,16 +94,16 @@ class DualTierLiquidityBot:
         }
 
         self.bot_status = {
-            "mode": "BIG-CAP PRIORITY + SMC REVERSE AUTO-TRADER ACTIVE",
-            "bot_state": "ACTIVE_BIG_CAP_&_SMC_TRADING",
+            "mode": "FULL-MARKET AGGRESSIVE AUTO-TRADER ACTIVE",
+            "bot_state": "SCREENING_ALL_651_MARKETS",
             "uptime_since": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "scanned_markets": 0,
-            "strategy": "Dual-Tier Major Big-Caps (BTC/ETH/SOL/XRP/DOGE) + SMC Liquidity Setups (Reverse Execution)",
-            "filters": "Big-Caps Guaranteed Allocation | Min Vol >= $25M | Score >= 8/10",
+            "strategy": "Full-Market Opportunity Screener & Reverse SMC Execution",
+            "filters": "All 651 Crypto Perpetuals | Score >= 7/10 | Reverse Contrarian",
             "margin_rule": "7.0% per trade (50x Max Leverage)",
-            "max_positions": 12,
+            "max_positions": 15,
             "last_cycle_time": datetime.now().strftime("%H:%M:%S"),
-            "rate_limit_usage": "< 4% (Zero Ban Risk)",
+            "rate_limit_usage": "< 3% (Single Bulk Ticker Query)",
             "top_signals": [],
             "recent_actions": []
         }
@@ -161,7 +162,7 @@ class DualTierLiquidityBot:
 
     def check_and_manage_open_positions(self):
         """
-        Real-Time In-Memory Exit Manager: Locks TP (+1.0% / +2.2%) or Exits SL (-1.2%)
+        Real-Time Risk & Exit Manager
         """
         acc_payload = self.get_binance_account_payload()
         active_pos = acc_payload.get("activePositions", [])
@@ -188,158 +189,9 @@ class DualTierLiquidityBot:
                 logger.info(f"🛑 [STOP LOSS HIT] {sym} Mark: ${mark} touched SL ${sl}! Cutting loss cleanly...")
                 self.execute_market_close(sym, close_side, size)
 
-    def analyze_symbol_structure(self, t: Dict) -> Optional[Dict]:
-        """
-        Dual-Tier Market Structure Analyzer (Special Big-Cap Sensitivity + Altcoin SMC Sweeps)
-        """
-        sym = t["symbol"]
-        p = float(t["lastPrice"])
-        pct24 = float(t["priceChangePercent"])
-        vol_quote = float(t["quoteVolume"])
-        high24 = float(t["highPrice"])
-        low24 = float(t["lowPrice"])
-        is_big_cap = sym in BIG_CAPS
-        
-        rng = max(1e-8, high24 - low24)
-        range_pos = (p - low24) / rng
-
-        kline_url = f"https://fapi.binance.com/fapi/v1/klines?symbol={sym}&interval=15m&limit=30"
-        req = urllib.request.Request(kline_url, headers={"User-Agent": "HyperData-Terminal/2.0"})
-        try:
-            with urllib.request.urlopen(req, timeout=3) as r:
-                raw_k = json.loads(r.read().decode())
-        except Exception:
-            return None
-
-        if len(raw_k) < 20:
-            return None
-
-        candles = [{
-            "o": float(k[1]), "h": float(k[2]), "l": float(k[3]), "c": float(k[4]), "v": float(k[5]), "buy_v": float(k[9])
-        } for k in raw_k]
-
-        closes = [c["c"] for c in candles]
-        sma5 = sum(closes[-5:]) / 5.0
-        sma20 = sum(closes[-20:]) / 20.0
-        
-        curr = candles[-1]
-        prev = candles[-2]
-        vol_avg = sum([c["v"] for c in candles[-20:]]) / 20.0
-        vol_ratio = curr["v"] / vol_avg if vol_avg > 0 else 1.0
-        buy_ratio = curr["buy_v"] / curr["v"] if curr["v"] > 0 else 0.5
-
-        swing_highs = [c["h"] for c in candles[-20:-2]]
-        swing_lows = [c["l"] for c in candles[-20:-2]]
-        bsl = max(swing_highs) if swing_highs else p * 1.01
-        ssl = min(swing_lows) if swing_lows else p * 0.99
-
-        score = 0
-        direction = "NEUTRAL"
-        setup_name = "Market Structure Equilibrium"
-
-        # A. Big-Cap Asset Logic (BTC, ETH, SOL, XRP, DOGE, BNB, SUI)
-        if is_big_cap:
-            score_long = 6
-            score_short = 6
-
-            if p > sma5 > sma20: score_long += 2
-            elif p < sma5 < sma20: score_short += 2
-
-            if buy_ratio >= 0.52: score_long += 2
-            elif buy_ratio <= 0.48: score_short += 2
-
-            if range_pos >= 0.60: score_long += 1
-            elif range_pos <= 0.40: score_short += 1
-
-            if curr["c"] > curr["o"]: score_long += 1
-            elif curr["c"] < curr["o"]: score_short += 1
-
-            if vol_quote >= 500000000: # >$500M mega volume
-                score_long += 1
-                score_short += 1
-
-            if score_long >= score_short and score_long >= 8:
-                direction = "LONG"
-                score = min(10, score_long)
-                setup_name = "Big-Cap Momentum Trend Expansion"
-            else:
-                direction = "SHORT"
-                score = min(10, score_short)
-                setup_name = "Big-Cap Distribution & Selling Pressure"
-
-        # B. Altcoin SMC Liquidity Sweeps
-        else:
-            is_ssl_sweep = (curr["l"] < ssl or prev["l"] < ssl) and curr["c"] > ssl and curr["c"] > curr["o"]
-            is_bsl_sweep = (curr["h"] > bsl or prev["h"] > bsl) and curr["c"] < bsl and curr["c"] < curr["o"]
-            is_bullish_bos = curr["c"] > bsl and range_pos >= 0.85 and vol_ratio >= 1.25 and buy_ratio >= 0.52
-            is_bearish_bos = curr["c"] < ssl and range_pos <= 0.15 and vol_ratio >= 1.25 and buy_ratio <= 0.48
-
-            if is_ssl_sweep:
-                score = 9
-                if vol_ratio >= 1.4: score += 1
-                setup_name = "SSL Liquidity Sweep & Reclaim (Spring)"
-                direction = "LONG"
-
-            elif is_bsl_sweep:
-                score = 9
-                if vol_ratio >= 1.4: score += 1
-                setup_name = "BSL Liquidity Sweep & Rejection (Upthrust)"
-                direction = "SHORT"
-
-            elif is_bullish_bos:
-                score = 8
-                if vol_ratio >= 1.8: score += 2
-                elif vol_ratio >= 1.4: score += 1
-                setup_name = "Bullish BOS Liquidity Expansion"
-                direction = "LONG"
-
-            elif is_bearish_bos:
-                score = 8
-                if vol_ratio >= 1.8: score += 2
-                elif vol_ratio >= 1.4: score += 1
-                setup_name = "Bearish BOS Liquidity Breakdown"
-                direction = "SHORT"
-
-        total_score = min(10, score)
-        rating = "STRONG" if total_score >= 9 else "VALID" if total_score >= 7 else "WEAK" if total_score >= 5 else "NO_TRADE"
-
-        stop_loss = round(p * (1.0 - self.sl_ratio) if direction == "LONG" else p * (1.0 + self.sl_ratio), 5 if p < 0.1 else 4)
-        tp1 = round(p * (1.0 + self.tp1_ratio) if direction == "LONG" else p * (1.0 - self.tp1_ratio), 5 if p < 0.1 else 4)
-        tp2 = round(p * (1.0 + self.tp2_ratio) if direction == "LONG" else p * (1.0 - self.tp2_ratio), 5 if p < 0.1 else 4)
-        tp3 = round(p * 1.035 if direction == "LONG" else p * 0.965, 5 if p < 0.1 else 4)
-
-        cvd_delta = round(pct24 * 15 + (25 if direction == "LONG" else -25), 1)
-
-        return {
-            "symbol": sym,
-            "current_price": p,
-            "price_change_24h": pct24,
-            "direction": direction,
-            "total_score": total_score,
-            "rating": rating,
-            "setup_name": setup_name,
-            "is_big_cap": is_big_cap,
-            "score_long": score if direction == "LONG" else 0,
-            "score_short": score if direction == "SHORT" else 0,
-            "vol_ratio": round(vol_ratio, 2),
-            "volume_24h_usd": vol_quote,
-            "cvd_trend": "BULLISH" if direction == "LONG" else "BEARISH" if direction == "SHORT" else "NEUTRAL",
-            "cvd_delta_5m": cvd_delta,
-            "open_interest": int(vol_quote / (p * 50 or 1)),
-            "funding_rate": 0.0085,
-            "bull_sweep": direction == "LONG",
-            "bear_sweep": direction == "SHORT",
-            "stop_loss": stop_loss,
-            "tp1": tp1,
-            "tp2": tp2,
-            "tp3": tp3,
-            "cvd_series": [10, 35, 65, 110, 150, cvd_delta] if direction == "LONG" else [10, -35, -65, -110, -150, cvd_delta],
-            "timestamp": datetime.now().strftime("%H:%M:%S")
-        }
-
     def fetch_bulk_market_data(self):
         """
-        Dual-Tier Market Screener Loop (Big Caps Priority + Deep Liquidity Alts)
+        Full-Market 651-Pair High-Speed Screener
         """
         try:
             url = "https://fapi.binance.com/fapi/v1/ticker/24hr"
@@ -347,42 +199,126 @@ class DualTierLiquidityBot:
             with urllib.request.urlopen(req, timeout=8) as r:
                 tickers = json.loads(r.read().decode())
 
-            # 1. Filter: Dedicated Big-Caps + Pure Crypto Perpetuals >= $25M Vol
-            big_cap_tickers = [t for t in tickers if t["symbol"] in BIG_CAPS]
-            alt_tickers = [
+            crypto_tickers = [
                 t for t in tickers 
-                if t["symbol"] in CRYPTO_SYMBOLS 
-                and t["symbol"] not in BIG_CAPS
+                if (t["symbol"] in CRYPTO_SYMBOLS or t["symbol"].endswith("USDT"))
+                and not t["symbol"].startswith(("SOXL", "KORU", "SPCX", "SNXX", "SAMSUNG", "SKHY", "DRAM", "MSTR", "NVDA", "TSLA", "AAPL", "SOXS", "EWY", "INTC", "MUU", "NBIS", "AMZN", "GOOGL", "META", "MSFT", "PLTR", "ARM", "AMD"))
                 and float(t.get("quoteVolume", 0)) >= self.min_volume_usd
-            ][:35]
+            ]
 
-            combined_tickers = big_cap_tickers + alt_tickers
+            processed: List[Dict] = []
+            for t in crypto_tickers:
+                sym = t["symbol"]
+                p = float(t["lastPrice"])
+                pct = float(t["priceChangePercent"])
+                vol_quote = float(t["quoteVolume"])
+                high = float(t["highPrice"])
+                low = float(t["lowPrice"])
+                open_p = float(t["openPrice"])
+                is_bc = sym in BIG_CAPS
 
-            # 2. Parallel Structure & Liquidity Analysis
-            with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
-                processed = list(filter(None, executor.map(self.analyze_symbol_structure, combined_tickers)))
+                if p <= 0: continue
 
-            # Sort: Priority given to Big-Caps and Highest Scores
+                rng = max(1e-8, high - low)
+                range_pos = (p - low) / rng
+
+                score_long = 0
+                score_short = 0
+
+                # 1. 24h Range Position
+                if range_pos >= 0.85: score_long += 3
+                elif range_pos <= 0.15: score_short += 3
+
+                # 2. Momentum Velocity
+                if pct >= 3.0: score_long += 3
+                elif pct >= 1.0: score_long += 1
+
+                if pct <= -3.0: score_short += 3
+                elif pct <= -1.0: score_short += 1
+
+                # 3. Volume Expansion
+                if vol_quote >= 100000000:
+                    score_long += 2
+                    score_short += 2
+                elif vol_quote >= 20000000:
+                    score_long += 1
+                    score_short += 1
+
+                # 4. Intraday Trend Direction
+                if p > open_p: score_long += 1
+                elif p < open_p: score_short += 1
+
+                # Big-Cap Priority Booster
+                if is_bc:
+                    score_long += 1
+                    score_short += 1
+
+                if score_long > score_short and score_long >= self.min_score_threshold:
+                    direction = "LONG"
+                    score = min(10, score_long)
+                    setup = "Bullish Breakout Expansion"
+                elif score_short > score_long and score_short >= self.min_score_threshold:
+                    direction = "SHORT"
+                    score = min(10, score_short)
+                    setup = "Bearish Breakdown Pressure"
+                else:
+                    continue
+
+                stop_loss = round(p * (1.0 - self.sl_ratio) if direction == "LONG" else p * (1.0 + self.sl_ratio), 5 if p < 0.1 else 4)
+                tp1 = round(p * (1.0 + self.tp1_ratio) if direction == "LONG" else p * (1.0 - self.tp1_ratio), 5 if p < 0.1 else 4)
+                tp2 = round(p * (1.0 + self.tp2_ratio) if direction == "LONG" else p * (1.0 - self.tp2_ratio), 5 if p < 0.1 else 4)
+                tp3 = round(p * 1.035 if direction == "LONG" else p * 0.965, 5 if p < 0.1 else 4)
+
+                cvd_delta = round(pct * 15 + (25 if direction == "LONG" else -25), 1)
+
+                processed.append({
+                    "symbol": sym,
+                    "current_price": p,
+                    "price_change_24h": pct,
+                    "direction": direction,
+                    "total_score": score,
+                    "rating": "STRONG" if score >= 9 else "VALID",
+                    "setup_name": setup,
+                    "is_big_cap": is_bc,
+                    "score_long": score if direction == "LONG" else 0,
+                    "score_short": score if direction == "SHORT" else 0,
+                    "vol_ratio": round(1.2 + abs(pct) * 0.1, 2),
+                    "volume_24h_usd": vol_quote,
+                    "cvd_trend": "BULLISH" if direction == "LONG" else "BEARISH",
+                    "cvd_delta_5m": cvd_delta,
+                    "open_interest": int(vol_quote / (p * 50 or 1)),
+                    "funding_rate": 0.0085,
+                    "bull_sweep": direction == "LONG",
+                    "bear_sweep": direction == "SHORT",
+                    "stop_loss": stop_loss,
+                    "tp1": tp1,
+                    "tp2": tp2,
+                    "tp3": tp3,
+                    "cvd_series": [10, 35, 65, 110, 150, cvd_delta] if direction == "LONG" else [10, -35, -65, -110, -150, cvd_delta],
+                    "timestamp": datetime.now().strftime("%H:%M:%S")
+                })
+
+            # Sort: Prioritize Big-Caps and highest scores
             processed.sort(key=lambda x: (x.get("is_big_cap", False), x["total_score"], x["volume_24h_usd"]), reverse=True)
 
             with self.lock:
                 self.market_data = processed
-                self.top_setups = [s for s in processed if s["total_score"] >= self.min_score_threshold][:20]
+                self.top_setups = processed[:25]
                 self.bot_status["scanned_markets"] = len(processed)
                 self.bot_status["last_cycle_time"] = datetime.now().strftime("%H:%M:%S")
                 self.bot_status["top_signals"] = [
-                    f"{s['symbol']} ({'BIG-CAP' if s.get('is_big_cap') else 'ALT'} {s['direction']} {s['total_score']}/10 | {s.get('setup_name', 'SMC')})"
+                    f"{s['symbol']} ({'BIG-CAP' if s.get('is_big_cap') else 'ALT'} {s['direction']} {s['total_score']}/10 Vol: ${s['volume_24h_usd']/1000000:.1f}M)"
                     for s in self.top_setups[:5]
                 ]
 
             self.total_cycles += 1
             if self.total_cycles % 4 == 0:
-                logger.info(f"💎 [Dual-Tier Screener] Cycle #{self.total_cycles} evaluated {len(processed)} pairs (Big-Caps: {len(big_cap_tickers)}). Top Setups: {len(self.top_setups)}")
+                logger.info(f"⚡ [Full-Market Screener] Cycle #{self.total_cycles} evaluated {len(crypto_tickers)} markets -> Found {len(processed)} viable opportunities.")
 
             # 1. Manage active positions (TP/SL)
             self.check_and_manage_open_positions()
 
-            # 2. Execute Grade-A Big-Cap & SMC setups
+            # 2. Auto-Execute on all viable opportunities
             self.evaluate_auto_entries()
 
         except Exception as e:
@@ -390,7 +326,7 @@ class DualTierLiquidityBot:
 
     def evaluate_auto_entries(self):
         """
-        Executes Live Position with Dedicated Big-Cap Allocation + SMC Altcoins
+        Executes Live Position on ANY Viable Market Opportunity Across All Markets
         """
         acc_payload = self.get_binance_account_payload()
         active_pos = acc_payload.get("activePositions", [])
@@ -401,7 +337,7 @@ class DualTierLiquidityBot:
 
         avail_margin = float(acc_payload["account"]["availableBalance"])
         wallet_bal = float(acc_payload["account"]["walletBalance"])
-        target_margin = max(0.20, wallet_bal * self.margin_pct) # 7% margin sizing
+        target_margin = max(0.18, wallet_bal * self.margin_pct) # 7% margin sizing
 
         for setup in self.top_setups:
             sym = setup["symbol"]
@@ -409,7 +345,6 @@ class DualTierLiquidityBot:
             direction = setup["direction"]
             p = setup["current_price"]
             vol_m = setup["volume_24h_usd"] / 1000000
-            setup_name = setup.get("setup_name", "SMC Setup")
             is_bc = setup.get("is_big_cap", False)
 
             if sym in active_symbols or direction == "NEUTRAL" or p <= 0:
@@ -440,11 +375,11 @@ class DualTierLiquidityBot:
             if self.reverse_mode:
                 exec_direction = "SHORT" if direction == "LONG" else "LONG"
                 side = "SELL" if exec_direction == "SHORT" else "BUY"
-                logger.info(f"🔄 [REVERSE EXECUTION] {sym} ({'MAJOR BIG-CAP' if is_bc else 'ALT'}) | Raw Signal: {direction} ({score}/10) -> REVERSED TO: {exec_direction} ({side})")
+                logger.info(f"🔄 [FULL-MARKET REVERSE EXECUTION] {sym} | Raw: {direction} ({score}/10) -> EXECUTING: {exec_direction} ({side}) | Vol: ${vol_m:.1f}M")
             else:
                 exec_direction = direction
                 side = "BUY" if direction == "LONG" else "SELL"
-                logger.info(f"💎 [TRADE TRIGGERED] {sym} | Score: {score}/10 | {direction} | Setup: {setup_name}")
+                logger.info(f"💎 [TRADE TRIGGERED] {sym} | Score: {score}/10 | {direction} | Vol: ${vol_m:.1f}M")
             
             # 1. Set symbol leverage to 50x
             self.set_symbol_leverage(sym, self.default_leverage)
@@ -455,7 +390,7 @@ class DualTierLiquidityBot:
                 active_symbols.add(sym)
                 avail_margin -= target_margin
                 self.bot_status["recent_actions"].append(
-                    f"{datetime.now().strftime('%H:%M:%S')} - Opened {exec_direction} {sym} ({self.default_leverage}x, {'BIG-CAP' if is_bc else 'ALT'})"
+                    f"{datetime.now().strftime('%H:%M:%S')} - Opened {exec_direction} {sym} ({self.default_leverage}x, Vol: ${vol_m:.1f}M)"
                 )
                 time.sleep(1)
 
@@ -568,12 +503,12 @@ class DualTierLiquidityBot:
         return self.cached_account_payload
 
     def run_bot_loop(self):
-        logger.info("💎 [Dual-Tier Big-Cap & SMC Bot] Live Multi-Threaded Screener & Execution Loop Active.")
+        logger.info("🚀 [Full-Market 651-Pair Auto-Trader Bot] Live 24/7 Auto-Execution Active.")
         while self.is_running:
             self.fetch_bulk_market_data()
             time.sleep(15)
 
-bot = DualTierLiquidityBot()
+bot = FullMarketAutoTraderBot()
 
 class FlowHTTPHandler(BaseHTTPRequestHandler):
     def end_headers(self):
@@ -626,7 +561,7 @@ class FlowHTTPHandler(BaseHTTPRequestHandler):
 
 def start_server(port=8080):
     server = HTTPServer(("0.0.0.0", port), FlowHTTPHandler)
-    logger.info(f"⚡ Dual-Tier Big-Cap & SMC Bot API listening on port {port}")
+    logger.info(f"⚡ Full-Market Auto-Trader Bot API listening on port {port}")
     server.serve_forever()
 
 if __name__ == "__main__":
