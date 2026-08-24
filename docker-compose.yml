@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  freqtrade:
+    image: freqtradeorg/freqtrade:stable
+    restart: unless-stopped
+    container_name: freqtrade_flow_bot
+    volumes:
+      - "./user_data:/freqtrade/user_data"
+    ports:
+      - "8080:8080"
+    command: >
+      trade
+      --config /freqtrade/user_data/config.json
+      --strategy OrderFlowRegimeStrategy
+      --db-url sqlite:////freqtrade/user_data/tradesv3.sqlite
+
+  flow_engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    container_name: hyperdata_flow_server
+    volumes:
+      - ".:/app"
+    working_dir: /app
+    ports:
+      - "8000:8000"
+    command: ["python", "flow_engine/flow_server.py"]

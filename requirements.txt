@@ -1,0 +1,8 @@
+freqtrade
+pandas
+numpy
+ccxt
+scipy
+fastapi
+uvicorn
+requests
