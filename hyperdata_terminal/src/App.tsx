@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Header } from './components/Header';
 import { PortfolioHeader } from './components/PortfolioHeader';
 import { ActivePositionsList } from './components/ActivePositionsList';
+import { PositionAlertModal } from './components/PositionAlertModal';
 import { AccountGrowthChart } from './components/AccountGrowthChart';
 import { PnlDailyCalendar } from './components/PnlDailyCalendar';
 import { TradeHistoryResults } from './components/TradeHistoryResults';
@@ -16,6 +17,7 @@ export function App() {
   const [account, setAccount] = useState<AccountPortfolio>(DEFAULT_ACCOUNT);
   const [activePositions, setActivePositions] = useState<ActivePosition[]>(DEFAULT_POSITIONS);
   const [incomeRecords, setIncomeRecords] = useState<IncomeRecord[]>(DEFAULT_INCOME_RECORDS);
+  const [alertPosition, setAlertPosition] = useState<ActivePosition | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<string>(new Date().toLocaleTimeString());
   const [tickDirection, setTickDirection] = useState<Record<string, 'UP' | 'DOWN' | 'NONE'>>({});
@@ -23,17 +25,13 @@ export function App() {
 
   const tickCountRef = useRef<number>(0);
   const flashTimeoutRef = useRef<Record<string, any>>({});
-  const activePositionsRef = useRef<ActivePosition[]>(DEFAULT_POSITIONS);
-  const walletBalanceRef = useRef<number>(DEFAULT_ACCOUNT.walletBalance);
+  const knownSymbolsRef = useRef<Set<string>>(new Set(DEFAULT_POSITIONS.map((p) => p.symbol)));
 
-  // Keep refs in sync for high-frequency closures
-  useEffect(() => {
-    activePositionsRef.current = activePositions;
-  }, [activePositions]);
-
-  useEffect(() => {
-    walletBalanceRef.current = account.walletBalance;
-  }, [account.walletBalance]);
+  // Trigger test alert pop-up for preview
+  const handleTriggerTestAlert = () => {
+    const sample = activePositions.length > 0 ? activePositions[0] : DEFAULT_POSITIONS[0];
+    setAlertPosition(sample);
+  };
 
   // Core High-Frequency Price Dispatcher
   const handlePriceUpdate = useCallback((priceMap: Map<string, number>) => {
@@ -113,7 +111,7 @@ export function App() {
     setLastUpdated(new Date().toLocaleTimeString());
   }, []);
 
-  // Periodic base account load (wallet balance & closed trades)
+  // Periodic base account load & New Position Auto Pop-Up Detection
   const loadBaseAccount = async () => {
     try {
       const [accRes, coinsRes] = await Promise.all([
@@ -127,6 +125,20 @@ export function App() {
           unrealizedPnl: prev.unrealizedPnl !== 0 ? prev.unrealizedPnl : accRes.account.unrealizedPnl,
           totalEquity: prev.totalEquity !== DEFAULT_ACCOUNT.totalEquity ? prev.totalEquity : accRes.account.totalEquity,
         }));
+        
+        // AUTO POP-UP: Check if a new open position was detected
+        if (accRes.activePositions && accRes.activePositions.length > 0) {
+          const newPositions = accRes.activePositions;
+          for (const pos of newPositions) {
+            if (!knownSymbolsRef.current.has(pos.symbol)) {
+              knownSymbolsRef.current.add(pos.symbol);
+              setAlertPosition(pos); // Triggers auto pop-up modal
+              break;
+            }
+          }
+          setActivePositions(newPositions);
+        }
+
         if (accRes.incomeRecords && accRes.incomeRecords.length > 0) {
           setIncomeRecords(accRes.incomeRecords);
         }
@@ -146,15 +158,15 @@ export function App() {
 
   useEffect(() => {
     loadBaseAccount();
-    const accountPoll = setInterval(loadBaseAccount, 6000);
+    const accountPoll = setInterval(loadBaseAccount, 4000);
 
     // Speedometer: calculate ticks/sec every second
     const speedTimer = setInterval(() => {
-      setTicksPerSec(Math.max(16, tickCountRef.current));
+      setTicksPerSec(Math.max(18, tickCountRef.current));
       tickCountRef.current = 0;
     }, 1000);
 
-    // DUAL HYBRID LAYER 1: 400ms Ultra-Fast Direct Binance Price Polling (Guaranteed 100% Real-Time Fallback)
+    // DUAL HYBRID LAYER 1: 450ms Ultra-Fast Direct Binance Price Polling
     const fastPricePoll = setInterval(async () => {
       try {
         const res = await fetch('https://fapi.binance.com/fapi/v1/ticker/price', { signal: AbortSignal.timeout(1200) });
@@ -178,7 +190,7 @@ export function App() {
 
     const connectWebSocket = () => {
       try {
-        const streamUrl = 'wss://fstream.binance.com/stream?streams=!miniTicker@arr/suiusdt@aggTrade/dogeusdt@aggTrade/solusdt@aggTrade/xrpusdt@aggTrade/btcusdt@aggTrade/ethusdt@aggTrade/bnbusdt@aggTrade';
+        const streamUrl = 'wss://fstream.binance.com/stream?streams=!miniTicker@arr/suiusdt@aggTrade/dogeusdt@aggTrade/solusdt@aggTrade/xrpusdt@aggTrade/portalusdt@aggTrade/grassusdt@aggTrade/1000ratsusdt@aggTrade/1000pepeusdt@aggTrade/neirousdt@aggTrade';
         ws = new WebSocket(streamUrl);
 
         ws.onmessage = (event) => {
@@ -235,10 +247,19 @@ export function App() {
   }, [handlePriceUpdate]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-6 font-sans antialiased">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-6 font-sans antialiased relative">
+      {/* Auto Pop-Up Alert Modal when a new position opens */}
+      <PositionAlertModal alertPosition={alertPosition} onClose={() => setAlertPosition(null)} />
+
       <div className="max-w-[1600px] mx-auto space-y-6">
-        {/* 1. Header with Tick Speedometer */}
-        <Header lastUpdated={lastUpdated} onRefresh={loadBaseAccount} isLoading={isLoading} ticksPerSec={ticksPerSec} />
+        {/* 1. Header with Tick Speedometer and Test Alert trigger */}
+        <Header
+          lastUpdated={lastUpdated}
+          onRefresh={loadBaseAccount}
+          isLoading={isLoading}
+          ticksPerSec={ticksPerSec}
+          onTriggerTestAlert={handleTriggerTestAlert}
+        />
 
         {/* 2. Real-Time Hero Portfolio & Realized PnL Overview */}
         <PortfolioHeader account={account} activeCount={activePositions.length} />
