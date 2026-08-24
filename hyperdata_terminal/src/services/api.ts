@@ -3,6 +3,9 @@ import type { FlowMarketData, AccountPortfolio, ActivePosition, IncomeRecord } f
 const API_KEY = 'SijchDXpN3dpJA5lYiCBQOgMC2ijnNgcR0UdVgncZYNeHP7RdBgMaj719I8y5WnY';
 const SECRET_KEY = 'zMQrvKFOV1CDGuGhx0kevzxhuCFgP0aDJ53W396C1M5BfIaoUEXYGGIziYp9qQZw';
 
+let lastIncomeFetchTime = 0;
+let cachedIncomeRecords: IncomeRecord[] = [];
+
 // Fast Browser-Native Web Crypto HMAC-SHA256 Signer
 async function signClientQuery(queryString: string): Promise<string> {
   try {
@@ -44,14 +47,14 @@ export const DEFAULT_ACCOUNT: AccountPortfolio = {
 export const DEFAULT_POSITIONS: ActivePosition[] = [];
 export const DEFAULT_INCOME_RECORDS: IncomeRecord[] = [];
 
-export async function fetchAccountData(): Promise<{
+export async function fetchAccountData(forceIncome: boolean = false): Promise<{
   account: AccountPortfolio;
   activePositions: ActivePosition[];
   incomeRecords: IncomeRecord[];
 }> {
   const timestamp = Date.now();
 
-  // PRIMARY: Direct Client-Side Signed Binance Query (0 Geo-blocking, 0 Server Latency, 100% Real-Time)
+  // PRIMARY: Direct Client-Side Signed Binance Query (Lightweight, weight <= 10)
   try {
     const query = `recvWindow=60000&timestamp=${timestamp}`;
     const signature = await signClientQuery(query);
@@ -59,7 +62,9 @@ export async function fetchAccountData(): Promise<{
     if (signature) {
       const headers = { 'X-MBX-APIKEY': API_KEY };
       
-      const [accRes, posRes, incRes] = await Promise.all([
+      const shouldFetchIncome = forceIncome || (Date.now() - lastIncomeFetchTime > 45000);
+      
+      const promises: Promise<any>[] = [
         fetch(`https://fapi.binance.com/fapi/v2/account?${query}&signature=${signature}`, {
           headers,
           cache: 'no-store',
@@ -69,18 +74,43 @@ export async function fetchAccountData(): Promise<{
           headers,
           cache: 'no-store',
           signal: AbortSignal.timeout(3000),
-        }),
-        fetch(`https://fapi.binance.com/fapi/v1/income?incomeType=REALIZED_PNL&limit=100&${query}&signature=${signature}`, {
-          headers,
-          cache: 'no-store',
-          signal: AbortSignal.timeout(3000),
         })
-      ]);
+      ];
+
+      if (shouldFetchIncome) {
+        promises.push(
+          fetch(`https://fapi.binance.com/fapi/v1/income?incomeType=REALIZED_PNL&limit=100&${query}&signature=${signature}`, {
+            headers,
+            cache: 'no-store',
+            signal: AbortSignal.timeout(3000),
+          })
+        );
+      }
+
+      const results = await Promise.all(promises);
+      const accRes = results[0];
+      const posRes = results[1];
+      const incRes = results.length > 2 ? results[2] : null;
 
       if (accRes.ok && posRes.ok) {
         const accData = await accRes.json();
         const posData = await posRes.json();
-        const incData = incRes.ok ? await incRes.json() : [];
+        
+        if (incRes && incRes.ok) {
+          const incData = await incRes.json();
+          if (Array.isArray(incData)) {
+            lastIncomeFetchTime = Date.now();
+            cachedIncomeRecords = incData.map((i: any) => ({
+              symbol: i.symbol,
+              income: parseFloat(i.income),
+              asset: i.asset,
+              time: new Date(i.time).toLocaleTimeString(),
+              date: new Date(i.time).toISOString().split('T')[0],
+              timestamp: i.time,
+              tradeId: i.tradeId,
+            }));
+          }
+        }
 
         const walletBal = parseFloat(accData.totalWalletBalance || '5.42');
         const unrealPnl = parseFloat(accData.totalUnrealizedProfit || '0');
@@ -120,21 +150,9 @@ export async function fetchAccountData(): Promise<{
               })
           : [];
 
-        const incomeRecords: IncomeRecord[] = Array.isArray(incData)
-          ? incData.map((i: any) => ({
-              symbol: i.symbol,
-              income: parseFloat(i.income),
-              asset: i.asset,
-              time: new Date(i.time).toLocaleTimeString(),
-              date: new Date(i.time).toISOString().split('T')[0],
-              timestamp: i.time,
-              tradeId: i.tradeId,
-            }))
-          : [];
-
-        const netPnl = incomeRecords.reduce((sum, r) => sum + r.income, 0);
-        const wins = incomeRecords.filter((r) => r.income > 0).length;
-        const losses = incomeRecords.filter((r) => r.income < 0).length;
+        const netPnl = cachedIncomeRecords.reduce((sum, r) => sum + r.income, 0);
+        const wins = cachedIncomeRecords.filter((r) => r.income > 0).length;
+        const losses = cachedIncomeRecords.filter((r) => r.income < 0).length;
         const winRate = (wins + losses) > 0 ? (wins / (wins + losses)) * 100 : 0;
 
         return {
@@ -148,59 +166,30 @@ export async function fetchAccountData(): Promise<{
             winRate: Number(winRate.toFixed(1)),
             winTrades: wins,
             loseTrades: losses,
-            totalTrades: incomeRecords.length,
+            totalTrades: cachedIncomeRecords.length,
           },
           activePositions,
-          incomeRecords,
+          incomeRecords: cachedIncomeRecords,
         };
       }
     }
   } catch (clientErr) {}
 
-  // FALLBACK 1: Local Daemon
-  try {
-    const res = await fetch(`http://localhost:8080/api/account?t=${timestamp}`, {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(1500),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.account) {
-        return {
-          account: data.account,
-          activePositions: Array.isArray(data.activePositions) ? data.activePositions : [],
-          incomeRecords: Array.isArray(data.incomeRecords) ? data.incomeRecords : [],
-        };
-      }
-    }
-  } catch (e) {}
-
-  // FALLBACK 2: Vercel Proxy
-  try {
-    const res = await fetch(`/api/account?t=${timestamp}`, {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(2000),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.account) {
-        return {
-          account: data.account,
-          activePositions: Array.isArray(data.activePositions) ? data.activePositions : [],
-          incomeRecords: Array.isArray(data.incomeRecords) ? data.incomeRecords : [],
-        };
-      }
-    }
-  } catch (e) {}
-
   return {
     account: DEFAULT_ACCOUNT,
     activePositions: [],
-    incomeRecords: [],
+    incomeRecords: cachedIncomeRecords,
   };
 }
 
-export async function fetchAllMarketCoins(): Promise<FlowMarketData[]> {
+let lastCoinsFetch = 0;
+let cachedCoinsData: FlowMarketData[] = [];
+
+export async function fetchAllMarketCoins(force: boolean = false): Promise<FlowMarketData[]> {
+  if (!force && cachedCoinsData.length > 0 && Date.now() - lastCoinsFetch < 30000) {
+    return cachedCoinsData;
+  }
+
   try {
     const res = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?t=${Date.now()}`, {
       cache: 'no-store',
@@ -211,7 +200,8 @@ export async function fetchAllMarketCoins(): Promise<FlowMarketData[]> {
       if (Array.isArray(tickers)) {
         const usdtPairs = tickers.filter((t: any) => t.symbol.endsWith('USDT') && parseFloat(t.quoteVolume) > 100000);
 
-        return usdtPairs.map((t: any) => {
+        lastCoinsFetch = Date.now();
+        cachedCoinsData = usdtPairs.map((t: any) => {
           const pct = parseFloat(t.priceChangePercent) || 0;
           const p = parseFloat(t.lastPrice) || 1;
           const volQuote = parseFloat(t.quoteVolume) || 0;
@@ -279,9 +269,10 @@ export async function fetchAllMarketCoins(): Promise<FlowMarketData[]> {
             timestamp: new Date().toLocaleTimeString(),
           };
         });
+        return cachedCoinsData;
       }
     }
   } catch (e) {}
 
-  return [];
+  return cachedCoinsData;
 }

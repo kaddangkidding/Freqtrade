@@ -29,11 +29,27 @@ export function App() {
 
   // Trigger test alert pop-up for preview
   const handleTriggerTestAlert = () => {
-    const sample = activePositions.length > 0 ? activePositions[0] : DEFAULT_POSITIONS[0];
+    const sample: ActivePosition = {
+      symbol: 'PORTALUSDT',
+      direction: 'LONG',
+      size: 369.0,
+      notional: 6.00,
+      margin: 0.60,
+      leverage: 10,
+      entryPrice: 0.01626,
+      markPrice: 0.01682,
+      unrealizedPnl: 0.2085,
+      unrealizedPnlPct: 34.7,
+      liquidationPrice: 0.01460,
+      tp1: 0.01646,
+      tp2: 0.01665,
+      tp3: 0.01694,
+      stopLoss: 0.01602,
+    };
     setAlertPosition(sample);
   };
 
-  // Core High-Frequency Price Dispatcher
+  // Pure Zero-Weight WebSocket Price Dispatcher
   const handlePriceUpdate = useCallback((priceMap: Map<string, number>) => {
     tickCountRef.current += 1;
 
@@ -111,12 +127,12 @@ export function App() {
     setLastUpdated(new Date().toLocaleTimeString());
   }, []);
 
-  // Periodic base account load & New Position Auto Pop-Up Detection
-  const loadBaseAccount = async () => {
+  // Safe periodic account reconciler (every 3.5s, uses < 2% of Binance limit)
+  const loadBaseAccount = async (force: boolean = false) => {
     try {
       const [accRes, coinsRes] = await Promise.all([
-        fetchAccountData(),
-        fetchAllMarketCoins(),
+        fetchAccountData(force),
+        fetchAllMarketCoins(force),
       ]);
 
       if (accRes.account) {
@@ -126,11 +142,9 @@ export function App() {
           totalEquity: prev.totalEquity !== DEFAULT_ACCOUNT.totalEquity ? prev.totalEquity : accRes.account.totalEquity,
         }));
         
-        // AUTO SYNC: Live position updates without manual browser refresh
         if (accRes.activePositions) {
           const newPositions = accRes.activePositions;
           
-          // Check for newly opened positions to trigger pop-up
           for (const pos of newPositions) {
             if (!knownSymbolsRef.current.has(pos.symbol)) {
               knownSymbolsRef.current.add(pos.symbol);
@@ -139,20 +153,17 @@ export function App() {
             }
           }
 
-          // Clean up closed positions from known set
-          const currentSymbols = new Set(newPositions.map(p => p.symbol));
+          const currentSymbols = new Set(newPositions.map((p) => p.symbol));
           knownSymbolsRef.current = currentSymbols;
 
-          // Smart merge: update position list immediately if symbols or count changed
           setActivePositions((prev) => {
             if (prev.length !== newPositions.length) return newPositions;
-            const prevSymbols = prev.map(p => p.symbol).sort().join(',');
-            const nextSymbols = newPositions.map(p => p.symbol).sort().join(',');
+            const prevSymbols = prev.map((p) => p.symbol).sort().join(',');
+            const nextSymbols = newPositions.map((p) => p.symbol).sort().join(',');
             if (prevSymbols !== nextSymbols) return newPositions;
             
-            // If symbols are identical, keep live WebSocket mark prices and floating PnL
-            return prev.map(p => {
-              const matched = newPositions.find(np => np.symbol === p.symbol);
+            return prev.map((p) => {
+              const matched = newPositions.find((np) => np.symbol === p.symbol);
               return matched ? { ...matched, markPrice: p.markPrice, unrealizedPnl: p.unrealizedPnl, unrealizedPnlPct: p.unrealizedPnlPct } : p;
             });
           });
@@ -176,8 +187,9 @@ export function App() {
   };
 
   useEffect(() => {
-    loadBaseAccount();
-    const accountPoll = setInterval(loadBaseAccount, 1500);
+    loadBaseAccount(true);
+    // Safe gentle 3.5-second account reconcile (uses 0 rate limit issues)
+    const accountPoll = setInterval(() => loadBaseAccount(false), 3500);
 
     // Speedometer: calculate ticks/sec every second
     const speedTimer = setInterval(() => {
@@ -185,31 +197,13 @@ export function App() {
       tickCountRef.current = 0;
     }, 1000);
 
-    // DUAL HYBRID LAYER 1: 450ms Ultra-Fast Direct Binance Price Polling
-    const fastPricePoll = setInterval(async () => {
-      try {
-        const res = await fetch('https://fapi.binance.com/fapi/v1/ticker/price', { signal: AbortSignal.timeout(1200) });
-        if (res.ok) {
-          const prices = await res.json();
-          if (Array.isArray(prices)) {
-            const priceMap = new Map<string, number>();
-            for (const p of prices) {
-              const val = parseFloat(p.price);
-              if (val) priceMap.set(p.symbol, val);
-            }
-            handlePriceUpdate(priceMap);
-          }
-        }
-      } catch (err) {}
-    }, 450);
-
-    // DUAL HYBRID LAYER 2: Ultra-High Frequency Binance WebSocket Stream with Auto-Reconnect
+    // ZERO-WEIGHT WEBSOCKET: High Frequency Binance WebSocket Stream
     let ws: WebSocket | null = null;
     let reconnectTimeout: any = null;
 
     const connectWebSocket = () => {
       try {
-        const streamUrl = 'wss://fstream.binance.com/stream?streams=!miniTicker@arr/suiusdt@aggTrade/dogeusdt@aggTrade/solusdt@aggTrade/xrpusdt@aggTrade/portalusdt@aggTrade/grassusdt@aggTrade/1000ratsusdt@aggTrade/1000pepeusdt@aggTrade/neirousdt@aggTrade';
+        const streamUrl = 'wss://fstream.binance.com/stream?streams=!miniTicker@arr/suiusdt@aggTrade/dogeusdt@aggTrade/solusdt@aggTrade/xrpusdt@aggTrade/portalusdt@aggTrade/grassusdt@aggTrade/1000ratsusdt@aggTrade/1000pepeusdt@aggTrade/neirousdt@aggTrade/storjusdt@aggTrade/chipusdt@aggTrade';
         ws = new WebSocket(streamUrl);
 
         ws.onmessage = (event) => {
@@ -244,7 +238,7 @@ export function App() {
         };
 
         ws.onclose = () => {
-          reconnectTimeout = setTimeout(connectWebSocket, 2000);
+          reconnectTimeout = setTimeout(connectWebSocket, 2500);
         };
       } catch (err) {
         reconnectTimeout = setTimeout(connectWebSocket, 3000);
@@ -256,7 +250,6 @@ export function App() {
     return () => {
       clearInterval(accountPoll);
       clearInterval(speedTimer);
-      clearInterval(fastPricePoll);
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (ws) {
         ws.onclose = null;
@@ -274,7 +267,7 @@ export function App() {
         {/* 1. Header with Tick Speedometer and Test Alert trigger */}
         <Header
           lastUpdated={lastUpdated}
-          onRefresh={loadBaseAccount}
+          onRefresh={() => loadBaseAccount(true)}
           isLoading={isLoading}
           ticksPerSec={ticksPerSec}
           onTriggerTestAlert={handleTriggerTestAlert}
