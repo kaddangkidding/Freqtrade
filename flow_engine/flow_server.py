@@ -25,6 +25,16 @@ SECRET_KEY = os.environ.get("BINANCE_SECRET_KEY", "zMQrvKFOV1CDGuGhx0kevzxhuCFgP
 
 # Load exchange symbol precision rules
 rules_path = os.path.join(os.path.dirname(__file__), "symbol_rules.json")
+
+crypto_path = os.path.join(os.path.dirname(__file__), "crypto_symbols.json")
+CRYPTO_SYMBOLS = set()
+if os.path.exists(crypto_path):
+    try:
+        with open(crypto_path, "r", encoding="utf-8") as f:
+            CRYPTO_SYMBOLS = set(json.load(f))
+    except Exception as e:
+        logger.warning(f"Could not load crypto_symbols: {e}")
+
 SYMBOL_RULES = {}
 if os.path.exists(rules_path):
     try:
@@ -53,6 +63,7 @@ class SMCLiquidityBot:
         self.margin_pct = 0.07         # 7% margin per position
         self.max_positions = 10        # Focused high-conviction capacity
         self.default_leverage = 50
+        self.reverse_mode = True       # Invert orders: Signal LONG -> Open SHORT | Signal SHORT -> Open LONG
         
         self.tp1_ratio = 0.010         # +1.0% TP1
         self.tp2_ratio = 0.022         # +2.2% TP2
@@ -79,11 +90,11 @@ class SMCLiquidityBot:
         }
 
         self.bot_status = {
-            "mode": "SMC LIQUIDITY & MARKET STRUCTURE AUTO-TRADER ACTIVE",
+            "mode": "REVERSE CONTRARIAN AUTO-TRADER ACTIVE (Signal LONG -> SHORT)",
             "bot_state": "SMC_LIQUIDITY_HUNTING",
             "uptime_since": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "scanned_markets": 0,
-            "strategy": "Smart Money Concepts (BSL/SSL Sweeps, FVG Imbalances & BOS Expansion)",
+            "strategy": "SMC Reverse Contrarian Fade (Signal LONG -> Open SHORT | Signal SHORT -> Open LONG)",
             "filters": "Min Vol >= $25M | Score >= 8/10 | 15m SMC Structure",
             "margin_rule": "7.0% per trade (50x Max Leverage)",
             "max_positions": 10,
@@ -306,9 +317,12 @@ class SMCLiquidityBot:
                 tickers = json.loads(r.read().decode())
 
             # 1. Deep Liquidity Filter: Only USDT Perpetual pairs with >= $25M volume
+            # Only pure crypto perpetual pairs with deep liquidity (>= $25M volume)
             usdt_tickers = [
                 t for t in tickers 
-                if t["symbol"].endswith("USDT") and float(t.get("quoteVolume", 0)) >= self.min_volume_usd
+                if (t["symbol"] in CRYPTO_SYMBOLS or t["symbol"].endswith("USDT"))
+                and not t["symbol"].startswith(("SOXL", "KORU", "SPCX", "SNXX", "SAMSUNG", "SKHY", "DRAM", "MSTR", "NVDA", "TSLA", "AAPL", "SOXS", "EWY", "INTC", "MUU", "NBIS", "AMZN", "GOOGL", "META", "MSFT", "PLTR", "ARM", "AMD"))
+                and float(t.get("quoteVolume", 0)) >= self.min_volume_usd
             ][:45]
 
             # 2. Parallel SMC Candlestick Market Structure Analysis
@@ -388,8 +402,15 @@ class SMCLiquidityBot:
             if qty < min_qty:
                 qty = min_qty
 
-            side = "BUY" if direction == "LONG" else "SELL"
-            logger.info(f"💎 [SMC TRADE TRIGGERED] {sym} | Score: {score}/10 | {direction} | Setup: {setup_name} | 24h Vol: ${vol_m:.1f}M")
+            # REVERSE POSITION EXECUTION (User Directive: Signal LONG -> Open SHORT)
+            if self.reverse_mode:
+                exec_direction = "SHORT" if direction == "LONG" else "LONG"
+                side = "SELL" if exec_direction == "SHORT" else "BUY"
+                logger.info(f"🔄 [REVERSE FADE TRIGGERED] {sym} | Raw Signal: {direction} ({score}/10) -> REVERSED TO: {exec_direction} ({side}) | Setup: {setup_name}")
+            else:
+                exec_direction = direction
+                side = "BUY" if direction == "LONG" else "SELL"
+                logger.info(f"💎 [SMC TRADE TRIGGERED] {sym} | Score: {score}/10 | {direction} | Setup: {setup_name} | 24h Vol: ${vol_m:.1f}M")
             
             # 1. Set symbol leverage to 50x
             self.set_symbol_leverage(sym, self.default_leverage)
@@ -400,7 +421,7 @@ class SMCLiquidityBot:
                 active_symbols.add(sym)
                 avail_margin -= target_margin
                 self.bot_status["recent_actions"].append(
-                    f"{datetime.now().strftime('%H:%M:%S')} - Opened {side} {sym} ({self.default_leverage}x, {setup_name})"
+                    f"{datetime.now().strftime('%H:%M:%S')} - Opened {exec_direction} ({side}) {sym} [REVERSED from {direction}] ({self.default_leverage}x)"
                 )
                 time.sleep(1)
 
