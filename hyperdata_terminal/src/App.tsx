@@ -189,7 +189,7 @@ export function App() {
   useEffect(() => {
     loadBaseAccount(true);
     // Safe gentle 3.5-second account reconcile (uses 0 rate limit issues)
-    const accountPoll = setInterval(() => loadBaseAccount(false), 3500);
+    const accountPoll = setInterval(() => loadBaseAccount(false), 15000);
 
     // Speedometer: calculate ticks/sec every second
     const speedTimer = setInterval(() => {
