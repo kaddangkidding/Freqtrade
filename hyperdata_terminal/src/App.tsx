@@ -126,17 +126,36 @@ export function App() {
           totalEquity: prev.totalEquity !== DEFAULT_ACCOUNT.totalEquity ? prev.totalEquity : accRes.account.totalEquity,
         }));
         
-        // AUTO POP-UP: Check if a new open position was detected
-        if (accRes.activePositions && accRes.activePositions.length > 0) {
+        // AUTO SYNC: Live position updates without manual browser refresh
+        if (accRes.activePositions) {
           const newPositions = accRes.activePositions;
+          
+          // Check for newly opened positions to trigger pop-up
           for (const pos of newPositions) {
             if (!knownSymbolsRef.current.has(pos.symbol)) {
               knownSymbolsRef.current.add(pos.symbol);
-              setAlertPosition(pos); // Triggers auto pop-up modal
+              setAlertPosition(pos);
               break;
             }
           }
-          setActivePositions(newPositions);
+
+          // Clean up closed positions from known set
+          const currentSymbols = new Set(newPositions.map(p => p.symbol));
+          knownSymbolsRef.current = currentSymbols;
+
+          // Smart merge: update position list immediately if symbols or count changed
+          setActivePositions((prev) => {
+            if (prev.length !== newPositions.length) return newPositions;
+            const prevSymbols = prev.map(p => p.symbol).sort().join(',');
+            const nextSymbols = newPositions.map(p => p.symbol).sort().join(',');
+            if (prevSymbols !== nextSymbols) return newPositions;
+            
+            // If symbols are identical, keep live WebSocket mark prices and floating PnL
+            return prev.map(p => {
+              const matched = newPositions.find(np => np.symbol === p.symbol);
+              return matched ? { ...matched, markPrice: p.markPrice, unrealizedPnl: p.unrealizedPnl, unrealizedPnlPct: p.unrealizedPnlPct } : p;
+            });
+          });
         }
 
         if (accRes.incomeRecords && accRes.incomeRecords.length > 0) {
@@ -158,7 +177,7 @@ export function App() {
 
   useEffect(() => {
     loadBaseAccount();
-    const accountPoll = setInterval(loadBaseAccount, 4000);
+    const accountPoll = setInterval(loadBaseAccount, 1500);
 
     // Speedometer: calculate ticks/sec every second
     const speedTimer = setInterval(() => {

@@ -1113,7 +1113,7 @@ export async function fetchAccountData(): Promise<{
 }> {
   // 1. Try Local Flow Daemon (Live direct sync)
   try {
-    const res = await fetch('http://localhost:8080/api/account', { signal: AbortSignal.timeout(1500) });
+    const res = await fetch(`http://localhost:8080/api/account?t=${Date.now()}`, { cache: 'no-store', signal: AbortSignal.timeout(1500) });
     if (res.ok) {
       const data = await res.json();
       if (data.account) {
@@ -1128,7 +1128,7 @@ export async function fetchAccountData(): Promise<{
 
   // 2. Try Vercel Serverless Endpoint
   try {
-    const res = await fetch('/api/account', { signal: AbortSignal.timeout(3000) });
+    const res = await fetch(`/api/account?t=${Date.now()}`, { cache: 'no-store', signal: AbortSignal.timeout(3000) });
     if (res.ok) {
       const data = await res.json();
       if (data.account) {
@@ -1150,7 +1150,7 @@ export async function fetchAccountData(): Promise<{
 
 export async function fetchAllMarketCoins(): Promise<FlowMarketData[]> {
   try {
-    const res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr', { signal: AbortSignal.timeout(4000) });
+    const res = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?t=${Date.now()}`, { cache: 'no-store', signal: AbortSignal.timeout(4000) });
     if (res.ok) {
       const tickers = await res.json();
       if (Array.isArray(tickers)) {

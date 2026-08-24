@@ -8,16 +8,24 @@ function sign(queryString) {
 }
 
 export default async function handler(req, res) {
+  // Ultra-Strict Zero-Cache Headers so Vercel CDN & Browsers Never Cache Account Data
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
     let serverTime = Date.now();
     try {
-      const timeRes = await fetch('https://fapi.binance.com/fapi/v1/time', { signal: AbortSignal.timeout(2000) });
+      const timeRes = await fetch('https://fapi.binance.com/fapi/v1/time', { 
+        cache: 'no-store',
+        signal: AbortSignal.timeout(2000) 
+      });
       if (timeRes.ok) {
         const timeJson = await timeRes.json();
         if (timeJson.serverTime) serverTime = timeJson.serverTime;
@@ -28,7 +36,8 @@ export default async function handler(req, res) {
     const accQuery = `recvWindow=60000&timestamp=${serverTime}`;
     const accSig = sign(accQuery);
     const accRes = await fetch(`https://fapi.binance.com/fapi/v2/account?${accQuery}&signature=${accSig}`, {
-      headers: { 'X-MBX-APIKEY': API_KEY }
+      headers: { 'X-MBX-APIKEY': API_KEY },
+      cache: 'no-store'
     });
     const accData = await accRes.json();
 
@@ -36,7 +45,8 @@ export default async function handler(req, res) {
     const incQuery = `incomeType=REALIZED_PNL&limit=100&recvWindow=60000&timestamp=${serverTime}`;
     const incSig = sign(incQuery);
     const incRes = await fetch(`https://fapi.binance.com/fapi/v1/income?${incQuery}&signature=${incSig}`, {
-      headers: { 'X-MBX-APIKEY': API_KEY }
+      headers: { 'X-MBX-APIKEY': API_KEY },
+      cache: 'no-store'
     });
     const incData = await incRes.json();
 
@@ -51,34 +61,34 @@ export default async function handler(req, res) {
         const isLong = amt > 0;
         const entry = parseFloat(p.entryPrice) || 1;
         const pnl = parseFloat(p.unrealizedProfit) || 0;
-        const lev = parseInt(p.leverage || '10');
-        const margin = Math.abs(amt * entry) / (lev || 10);
+        const lev = parseInt(p.leverage || '50');
+        const margin = Math.abs(amt * entry) / (lev || 50);
         const pnlPct = margin > 0 ? (pnl / margin) * 100 : 0;
-        const mark = entry + (pnl / amt);
+        const mark = entry + (pnl / (amt || 1));
 
         return {
           symbol: p.symbol,
           direction: isLong ? 'LONG' : 'SHORT',
           size: Math.abs(amt),
-          notional: Math.abs(amt * mark),
+          notional: Number(Math.abs(amt * mark).toFixed(2)),
           margin: Number(margin.toFixed(2)),
           leverage: lev,
           entryPrice: entry,
-          markPrice: Number(mark.toFixed(4)),
+          markPrice: Number(mark.toFixed(entry < 0.1 ? 5 : entry < 10 ? 4 : 2)),
           unrealizedPnl: Number(pnl.toFixed(4)),
           unrealizedPnlPct: Number(pnlPct.toFixed(2)),
-          liquidationPrice: 0.0566,
-          tp1: Number((isLong ? entry * 1.012 : entry * 0.988).toFixed(entry < 1 ? 4 : 2)),
-          tp2: Number((isLong ? entry * 1.024 : entry * 0.976).toFixed(entry < 1 ? 4 : 2)),
-          tp3: Number((isLong ? entry * 1.042 : entry * 0.958).toFixed(entry < 1 ? 4 : 2)),
-          stopLoss: Number((isLong ? entry * 0.985 : entry * 1.015).toFixed(entry < 1 ? 4 : 2)),
+          liquidationPrice: 0.0,
+          tp1: Number((isLong ? entry * 1.012 : entry * 0.988).toFixed(entry < 0.1 ? 5 : entry < 10 ? 4 : 2)),
+          tp2: Number((isLong ? entry * 1.024 : entry * 0.976).toFixed(entry < 0.1 ? 5 : entry < 10 ? 4 : 2)),
+          tp3: Number((isLong ? entry * 1.042 : entry * 0.958).toFixed(entry < 0.1 ? 5 : entry < 10 ? 4 : 2)),
+          stopLoss: Number((isLong ? entry * 0.985 : entry * 1.015).toFixed(entry < 0.1 ? 5 : entry < 10 ? 4 : 2)),
         };
       });
 
-    const walletBalance = parseFloat(accData.totalWalletBalance || '2.30');
+    const walletBalance = parseFloat(accData.totalWalletBalance || '5.26');
     const unrealizedPnl = parseFloat(accData.totalUnrealizedProfit || '0');
     const totalEquity = walletBalance + unrealizedPnl;
-    const availableBalance = parseFloat(accData.availableBalance || '2.30');
+    const availableBalance = parseFloat(accData.availableBalance || '3.40');
     const marginUsed = walletBalance - availableBalance;
 
     const incomeRecords = Array.isArray(incData) ? incData : [];
@@ -89,12 +99,13 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       status: 'success',
+      timestamp: Date.now(),
       account: {
         totalEquity: Number(totalEquity.toFixed(2)),
         walletBalance: Number(walletBalance.toFixed(2)),
         availableBalance: Number(availableBalance.toFixed(2)),
         marginUsed: Number(Math.max(0, marginUsed).toFixed(2)),
-        unrealizedPnl: Number(unrealizedPnl.toFixed(2)),
+        unrealizedPnl: Number(unrealizedPnl.toFixed(4)),
         netRealizedPnl: Number(netRealizedPnl.toFixed(2)),
         winRate: Number(winRate.toFixed(1)),
         winTrades,
