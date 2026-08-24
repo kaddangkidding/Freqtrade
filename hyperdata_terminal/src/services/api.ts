@@ -1,933 +1,167 @@
 import type { FlowMarketData, AccountPortfolio, ActivePosition, IncomeRecord } from '../types/flow';
 
+const API_KEY = 'SijchDXpN3dpJA5lYiCBQOgMC2ijnNgcR0UdVgncZYNeHP7RdBgMaj719I8y5WnY';
+const SECRET_KEY = 'zMQrvKFOV1CDGuGhx0kevzxhuCFgP0aDJ53W396C1M5BfIaoUEXYGGIziYp9qQZw';
+
+// Fast Browser-Native Web Crypto HMAC-SHA256 Signer
+async function signClientQuery(queryString: string): Promise<string> {
+  try {
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(SECRET_KEY);
+    const key = await window.crypto.subtle.importKey(
+      'raw',
+      keyData,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    const signature = await window.crypto.subtle.sign(
+      'HMAC',
+      key,
+      encoder.encode(queryString)
+    );
+    return Array.from(new Uint8Array(signature))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  } catch (e) {
+    return '';
+  }
+}
+
 export const DEFAULT_ACCOUNT: AccountPortfolio = {
   totalEquity: 5.42,
   walletBalance: 5.42,
   availableBalance: 5.42,
   marginUsed: 0.00,
   unrealizedPnl: 0.00,
-  netRealizedPnl: -0.94,
-  winRate: 51.0,
-  winTrades: 51,
-  loseTrades: 49,
+  netRealizedPnl: -1.22,
+  winRate: 44.0,
+  winTrades: 44,
+  loseTrades: 56,
   totalTrades: 100,
 };
 
 export const DEFAULT_POSITIONS: ActivePosition[] = [];
-
-export const DEFAULT_INCOME_RECORDS: IncomeRecord[] = [
-  {
-    "symbol": "1000PEPEUSDT",
-    "income": 0.0397,
-    "asset": "USDT",
-    "time": "16:38:17",
-    "date": "2026-08-24",
-    "timestamp": 1787564297000,
-    "tradeId": "2744038414"
-  },
-  {
-    "symbol": "PORTALUSDT",
-    "income": 0.0185,
-    "asset": "USDT",
-    "time": "16:38:17",
-    "date": "2026-08-24",
-    "timestamp": 1787564297000,
-    "tradeId": "161665015"
-  },
-  {
-    "symbol": "STORJUSDT",
-    "income": 0.0598,
-    "asset": "USDT",
-    "time": "16:38:17",
-    "date": "2026-08-24",
-    "timestamp": 1787564297000,
-    "tradeId": "448921792"
-  },
-  {
-    "symbol": "1000RATSUSDT",
-    "income": 0.0666,
-    "asset": "USDT",
-    "time": "16:38:17",
-    "date": "2026-08-24",
-    "timestamp": 1787564297000,
-    "tradeId": "370250467"
-  },
-  {
-    "symbol": "DOGEUSDT",
-    "income": 0.0013,
-    "asset": "USDT",
-    "time": "16:38:17",
-    "date": "2026-08-24",
-    "timestamp": 1787564297000,
-    "tradeId": "3440151425"
-  },
-  {
-    "symbol": "DOGEUSDT",
-    "income": 0.0072,
-    "asset": "USDT",
-    "time": "16:38:17",
-    "date": "2026-08-24",
-    "timestamp": 1787564297000,
-    "tradeId": "3440151424"
-  },
-  {
-    "symbol": "NEIROUSDT",
-    "income": 0.0424,
-    "asset": "USDT",
-    "time": "16:38:17",
-    "date": "2026-08-24",
-    "timestamp": 1787564297000,
-    "tradeId": "602305158"
-  },
-  {
-    "symbol": "XRPUSDT",
-    "income": 0.0013,
-    "asset": "USDT",
-    "time": "16:38:17",
-    "date": "2026-08-24",
-    "timestamp": 1787564297000,
-    "tradeId": "3243378477"
-  },
-  {
-    "symbol": "XRPUSDT",
-    "income": 0.0071,
-    "asset": "USDT",
-    "time": "16:38:17",
-    "date": "2026-08-24",
-    "timestamp": 1787564297000,
-    "tradeId": "3243378476"
-  },
-  {
-    "symbol": "GRASSUSDT",
-    "income": 0.0032,
-    "asset": "USDT",
-    "time": "16:38:17",
-    "date": "2026-08-24",
-    "timestamp": 1787564297000,
-    "tradeId": "174485157"
-  },
-  {
-    "symbol": "SUIUSDT",
-    "income": 0.0068,
-    "asset": "USDT",
-    "time": "16:38:17",
-    "date": "2026-08-24",
-    "timestamp": 1787564297000,
-    "tradeId": "1544282478"
-  },
-  {
-    "symbol": "SUIUSDT",
-    "income": 0.0527,
-    "asset": "USDT",
-    "time": "16:38:17",
-    "date": "2026-08-24",
-    "timestamp": 1787564297000,
-    "tradeId": "1544282477"
-  },
-  {
-    "symbol": "SOLUSDT",
-    "income": 0.0444,
-    "asset": "USDT",
-    "time": "16:38:17",
-    "date": "2026-08-24",
-    "timestamp": 1787564297000,
-    "tradeId": "3476011022"
-  },
-  {
-    "symbol": "CHIPUSDT",
-    "income": -0.1408,
-    "asset": "USDT",
-    "time": "16:38:17",
-    "date": "2026-08-24",
-    "timestamp": 1787564297000,
-    "tradeId": "101351261"
-  },
-  {
-    "symbol": "DOGEUSDT",
-    "income": -0.0195,
-    "asset": "USDT",
-    "time": "14:43:21",
-    "date": "2026-08-24",
-    "timestamp": 1787557401000,
-    "tradeId": "3440004957"
-  },
-  {
-    "symbol": "COWUSDT",
-    "income": -0.0039,
-    "asset": "USDT",
-    "time": "13:50:37",
-    "date": "2026-08-24",
-    "timestamp": 1787554237000,
-    "tradeId": "136294693"
-  },
-  {
-    "symbol": "COWUSDT",
-    "income": -0.005,
-    "asset": "USDT",
-    "time": "13:50:37",
-    "date": "2026-08-24",
-    "timestamp": 1787554237000,
-    "tradeId": "136294692"
-  },
-  {
-    "symbol": "VIRTUALUSDT",
-    "income": 0.0244,
-    "asset": "USDT",
-    "time": "13:50:37",
-    "date": "2026-08-24",
-    "timestamp": 1787554237000,
-    "tradeId": "449146036"
-  },
-  {
-    "symbol": "VIRTUALUSDT",
-    "income": 0.0206,
-    "asset": "USDT",
-    "time": "13:50:37",
-    "date": "2026-08-24",
-    "timestamp": 1787554237000,
-    "tradeId": "449146035"
-  },
-  {
-    "symbol": "EGLDUSDT",
-    "income": 0.1395,
-    "asset": "USDT",
-    "time": "13:50:37",
-    "date": "2026-08-24",
-    "timestamp": 1787554237000,
-    "tradeId": "386100410"
-  },
-  {
-    "symbol": "PENGUUSDT",
-    "income": 0.0004,
-    "asset": "USDT",
-    "time": "13:50:37",
-    "date": "2026-08-24",
-    "timestamp": 1787554237000,
-    "tradeId": "589955872"
-  },
-  {
-    "symbol": "PENGUUSDT",
-    "income": 0.0242,
-    "asset": "USDT",
-    "time": "13:50:37",
-    "date": "2026-08-24",
-    "timestamp": 1787554237000,
-    "tradeId": "589955871"
-  },
-  {
-    "symbol": "PENGUUSDT",
-    "income": 0.0222,
-    "asset": "USDT",
-    "time": "13:50:37",
-    "date": "2026-08-24",
-    "timestamp": 1787554237000,
-    "tradeId": "589955870"
-  },
-  {
-    "symbol": "CHIPUSDT",
-    "income": -0.0745,
-    "asset": "USDT",
-    "time": "13:50:37",
-    "date": "2026-08-24",
-    "timestamp": 1787554237000,
-    "tradeId": "101314376"
-  },
-  {
-    "symbol": "BABYUSDT",
-    "income": -0.0042,
-    "asset": "USDT",
-    "time": "13:50:37",
-    "date": "2026-08-24",
-    "timestamp": 1787554237000,
-    "tradeId": "118844913"
-  },
-  {
-    "symbol": "BABYUSDT",
-    "income": -0.0042,
-    "asset": "USDT",
-    "time": "13:50:37",
-    "date": "2026-08-24",
-    "timestamp": 1787554237000,
-    "tradeId": "118844912"
-  },
-  {
-    "symbol": "SUPERUSDT",
-    "income": 0.004,
-    "asset": "USDT",
-    "time": "13:49:24",
-    "date": "2026-08-24",
-    "timestamp": 1787554164000,
-    "tradeId": "185008853"
-  },
-  {
-    "symbol": "BABYUSDT",
-    "income": 0.0444,
-    "asset": "USDT",
-    "time": "13:47:29",
-    "date": "2026-08-24",
-    "timestamp": 1787554049000,
-    "tradeId": "118844664"
-  },
-  {
-    "symbol": "SKYUSDT",
-    "income": -0.1028,
-    "asset": "USDT",
-    "time": "13:47:29",
-    "date": "2026-08-24",
-    "timestamp": 1787554049000,
-    "tradeId": "47372364"
-  },
-  {
-    "symbol": "PROMUSDT",
-    "income": 0.0016,
-    "asset": "USDT",
-    "time": "13:47:29",
-    "date": "2026-08-24",
-    "timestamp": 1787554049000,
-    "tradeId": "75539688"
-  },
-  {
-    "symbol": "EGLDUSDT",
-    "income": -0.0153,
-    "asset": "USDT",
-    "time": "13:47:29",
-    "date": "2026-08-24",
-    "timestamp": 1787554049000,
-    "tradeId": "386099219"
-  },
-  {
-    "symbol": "SUPERUSDT",
-    "income": -0.0011,
-    "asset": "USDT",
-    "time": "13:47:29",
-    "date": "2026-08-24",
-    "timestamp": 1787554049000,
-    "tradeId": "185008364"
-  },
-  {
-    "symbol": "TAKEUSDT",
-    "income": -0.0053,
-    "asset": "USDT",
-    "time": "13:47:29",
-    "date": "2026-08-24",
-    "timestamp": 1787554049000,
-    "tradeId": "95534361"
-  },
-  {
-    "symbol": "TAKEUSDT",
-    "income": -0.0035,
-    "asset": "USDT",
-    "time": "13:47:29",
-    "date": "2026-08-24",
-    "timestamp": 1787554049000,
-    "tradeId": "95534360"
-  },
-  {
-    "symbol": "PENGUUSDT",
-    "income": 0.0196,
-    "asset": "USDT",
-    "time": "13:47:29",
-    "date": "2026-08-24",
-    "timestamp": 1787554049000,
-    "tradeId": "589948794"
-  },
-  {
-    "symbol": "PENGUUSDT",
-    "income": 0.0163,
-    "asset": "USDT",
-    "time": "13:47:29",
-    "date": "2026-08-24",
-    "timestamp": 1787554049000,
-    "tradeId": "589948793"
-  },
-  {
-    "symbol": "CHIPUSDT",
-    "income": 0.0202,
-    "asset": "USDT",
-    "time": "13:47:29",
-    "date": "2026-08-24",
-    "timestamp": 1787554049000,
-    "tradeId": "101313521"
-  },
-  {
-    "symbol": "CHIPUSDT",
-    "income": 0.0228,
-    "asset": "USDT",
-    "time": "13:47:29",
-    "date": "2026-08-24",
-    "timestamp": 1787554049000,
-    "tradeId": "101313520"
-  },
-  {
-    "symbol": "CHIPUSDT",
-    "income": 0.0213,
-    "asset": "USDT",
-    "time": "13:47:29",
-    "date": "2026-08-24",
-    "timestamp": 1787554049000,
-    "tradeId": "101313519"
-  },
-  {
-    "symbol": "CHIPUSDT",
-    "income": 0.0022,
-    "asset": "USDT",
-    "time": "13:47:29",
-    "date": "2026-08-24",
-    "timestamp": 1787554049000,
-    "tradeId": "101313518"
-  },
-  {
-    "symbol": "SKYAIUSDT",
-    "income": -0.0437,
-    "asset": "USDT",
-    "time": "13:44:11",
-    "date": "2026-08-24",
-    "timestamp": 1787553851000,
-    "tradeId": "209996868"
-  },
-  {
-    "symbol": "BABYUSDT",
-    "income": 0.0139,
-    "asset": "USDT",
-    "time": "13:44:00",
-    "date": "2026-08-24",
-    "timestamp": 1787553840000,
-    "tradeId": "118844480"
-  },
-  {
-    "symbol": "CCUSDT",
-    "income": -0.0109,
-    "asset": "USDT",
-    "time": "13:43:46",
-    "date": "2026-08-24",
-    "timestamp": 1787553826000,
-    "tradeId": "66781017"
-  },
-  {
-    "symbol": "CCUSDT",
-    "income": -0.0402,
-    "asset": "USDT",
-    "time": "13:43:46",
-    "date": "2026-08-24",
-    "timestamp": 1787553826000,
-    "tradeId": "66781016"
-  },
-  {
-    "symbol": "SPKUSDT",
-    "income": -0.0871,
-    "asset": "USDT",
-    "time": "13:42:46",
-    "date": "2026-08-24",
-    "timestamp": 1787553766000,
-    "tradeId": "155894292"
-  },
-  {
-    "symbol": "ZORAUSDT",
-    "income": -0.1012,
-    "asset": "USDT",
-    "time": "13:42:35",
-    "date": "2026-08-24",
-    "timestamp": 1787553755000,
-    "tradeId": "138672213"
-  },
-  {
-    "symbol": "XPLUSDT",
-    "income": -0.0858,
-    "asset": "USDT",
-    "time": "13:41:13",
-    "date": "2026-08-24",
-    "timestamp": 1787553673000,
-    "tradeId": "295724046"
-  },
-  {
-    "symbol": "MORPHOUSDT",
-    "income": -0.0715,
-    "asset": "USDT",
-    "time": "13:40:51",
-    "date": "2026-08-24",
-    "timestamp": 1787553651000,
-    "tradeId": "160320078"
-  },
-  {
-    "symbol": "WLDUSDT",
-    "income": -0.0903,
-    "asset": "USDT",
-    "time": "13:40:08",
-    "date": "2026-08-24",
-    "timestamp": 1787553608000,
-    "tradeId": "1333370699"
-  },
-  {
-    "symbol": "WLDUSDT",
-    "income": -0.0688,
-    "asset": "USDT",
-    "time": "13:40:08",
-    "date": "2026-08-24",
-    "timestamp": 1787553608000,
-    "tradeId": "1333370698"
-  },
-  {
-    "symbol": "WLDUSDT",
-    "income": -0.0688,
-    "asset": "USDT",
-    "time": "13:40:08",
-    "date": "2026-08-24",
-    "timestamp": 1787553608000,
-    "tradeId": "1333370697"
-  },
-  {
-    "symbol": "ATHUSDT",
-    "income": -0.0539,
-    "asset": "USDT",
-    "time": "13:39:44",
-    "date": "2026-08-24",
-    "timestamp": 1787553584000,
-    "tradeId": "58014033"
-  },
-  {
-    "symbol": "XPLUSDT",
-    "income": 0.0252,
-    "asset": "USDT",
-    "time": "13:37:26",
-    "date": "2026-08-24",
-    "timestamp": 1787553446000,
-    "tradeId": "295719359"
-  },
-  {
-    "symbol": "ZAMAUSDT",
-    "income": -0.0342,
-    "asset": "USDT",
-    "time": "13:36:52",
-    "date": "2026-08-24",
-    "timestamp": 1787553412000,
-    "tradeId": "53892785"
-  },
-  {
-    "symbol": "ZAMAUSDT",
-    "income": -0.0528,
-    "asset": "USDT",
-    "time": "13:36:52",
-    "date": "2026-08-24",
-    "timestamp": 1787553412000,
-    "tradeId": "53892784"
-  },
-  {
-    "symbol": "IOUSDT",
-    "income": -0.0633,
-    "asset": "USDT",
-    "time": "13:36:42",
-    "date": "2026-08-24",
-    "timestamp": 1787553402000,
-    "tradeId": "250730248"
-  },
-  {
-    "symbol": "TUTUSDT",
-    "income": -0.0469,
-    "asset": "USDT",
-    "time": "13:36:04",
-    "date": "2026-08-24",
-    "timestamp": 1787553364000,
-    "tradeId": "228256171"
-  },
-  {
-    "symbol": "ZECUSDT",
-    "income": -0.0824,
-    "asset": "USDT",
-    "time": "13:35:17",
-    "date": "2026-08-24",
-    "timestamp": 1787553317000,
-    "tradeId": "1379399889"
-  },
-  {
-    "symbol": "ARKMUSDT",
-    "income": -0.0432,
-    "asset": "USDT",
-    "time": "13:35:03",
-    "date": "2026-08-24",
-    "timestamp": 1787553303000,
-    "tradeId": "311373540"
-  },
-  {
-    "symbol": "XPLUSDT",
-    "income": 0.0185,
-    "asset": "USDT",
-    "time": "13:34:44",
-    "date": "2026-08-24",
-    "timestamp": 1787553284000,
-    "tradeId": "295713819"
-  },
-  {
-    "symbol": "XPLUSDT",
-    "income": 0.0823,
-    "asset": "USDT",
-    "time": "13:34:44",
-    "date": "2026-08-24",
-    "timestamp": 1787553284000,
-    "tradeId": "295713818"
-  },
-  {
-    "symbol": "ASTERUSDT",
-    "income": -0.048,
-    "asset": "USDT",
-    "time": "13:33:12",
-    "date": "2026-08-24",
-    "timestamp": 1787553192000,
-    "tradeId": "402743311"
-  },
-  {
-    "symbol": "VIRTUALUSDT",
-    "income": -0.0362,
-    "asset": "USDT",
-    "time": "13:32:12",
-    "date": "2026-08-24",
-    "timestamp": 1787553132000,
-    "tradeId": "449141768"
-  },
-  {
-    "symbol": "VIRTUALUSDT",
-    "income": -0.0389,
-    "asset": "USDT",
-    "time": "13:32:12",
-    "date": "2026-08-24",
-    "timestamp": 1787553132000,
-    "tradeId": "449141767"
-  },
-  {
-    "symbol": "ZENUSDT",
-    "income": 0.0096,
-    "asset": "USDT",
-    "time": "13:32:08",
-    "date": "2026-08-24",
-    "timestamp": 1787553128000,
-    "tradeId": "504496028"
-  },
-  {
-    "symbol": "ZENUSDT",
-    "income": 0.0084,
-    "asset": "USDT",
-    "time": "13:32:08",
-    "date": "2026-08-24",
-    "timestamp": 1787553128000,
-    "tradeId": "504496027"
-  },
-  {
-    "symbol": "ZENUSDT",
-    "income": 0.0036,
-    "asset": "USDT",
-    "time": "13:32:08",
-    "date": "2026-08-24",
-    "timestamp": 1787553128000,
-    "tradeId": "504496026"
-  },
-  {
-    "symbol": "USELESSUSDT",
-    "income": 0.0002,
-    "asset": "USDT",
-    "time": "13:31:12",
-    "date": "2026-08-24",
-    "timestamp": 1787553072000,
-    "tradeId": "98616660"
-  },
-  {
-    "symbol": "USELESSUSDT",
-    "income": 0.0007,
-    "asset": "USDT",
-    "time": "13:31:12",
-    "date": "2026-08-24",
-    "timestamp": 1787553072000,
-    "tradeId": "98616659"
-  },
-  {
-    "symbol": "USELESSUSDT",
-    "income": 0.0014,
-    "asset": "USDT",
-    "time": "13:31:12",
-    "date": "2026-08-24",
-    "timestamp": 1787553072000,
-    "tradeId": "98616658"
-  },
-  {
-    "symbol": "PROMUSDT",
-    "income": -0.0013,
-    "asset": "USDT",
-    "time": "13:31:05",
-    "date": "2026-08-24",
-    "timestamp": 1787553065000,
-    "tradeId": "75511248"
-  },
-  {
-    "symbol": "PROMUSDT",
-    "income": -0.0208,
-    "asset": "USDT",
-    "time": "13:31:05",
-    "date": "2026-08-24",
-    "timestamp": 1787553065000,
-    "tradeId": "75511247"
-  },
-  {
-    "symbol": "ENAUSDT",
-    "income": -0.0651,
-    "asset": "USDT",
-    "time": "13:31:01",
-    "date": "2026-08-24",
-    "timestamp": 1787553061000,
-    "tradeId": "837882720"
-  },
-  {
-    "symbol": "EGLDUSDT",
-    "income": 0.0003,
-    "asset": "USDT",
-    "time": "13:29:51",
-    "date": "2026-08-24",
-    "timestamp": 1787552991000,
-    "tradeId": "386098039"
-  },
-  {
-    "symbol": "EGLDUSDT",
-    "income": 0.0048,
-    "asset": "USDT",
-    "time": "13:29:51",
-    "date": "2026-08-24",
-    "timestamp": 1787552991000,
-    "tradeId": "386098038"
-  },
-  {
-    "symbol": "EGLDUSDT",
-    "income": 0.0064,
-    "asset": "USDT",
-    "time": "13:29:51",
-    "date": "2026-08-24",
-    "timestamp": 1787552991000,
-    "tradeId": "386098037"
-  },
-  {
-    "symbol": "EIGENUSDT",
-    "income": -0.06,
-    "asset": "USDT",
-    "time": "13:28:51",
-    "date": "2026-08-24",
-    "timestamp": 1787552931000,
-    "tradeId": "361467158"
-  },
-  {
-    "symbol": "WUSDT",
-    "income": -0.0143,
-    "asset": "USDT",
-    "time": "13:28:40",
-    "date": "2026-08-24",
-    "timestamp": 1787552920000,
-    "tradeId": "247977829"
-  },
-  {
-    "symbol": "WUSDT",
-    "income": -0.0377,
-    "asset": "USDT",
-    "time": "13:28:40",
-    "date": "2026-08-24",
-    "timestamp": 1787552920000,
-    "tradeId": "247977828"
-  },
-  {
-    "symbol": "WUSDT",
-    "income": -0.0372,
-    "asset": "USDT",
-    "time": "13:28:40",
-    "date": "2026-08-24",
-    "timestamp": 1787552920000,
-    "tradeId": "247977827"
-  },
-  {
-    "symbol": "MINAUSDT",
-    "income": 0.0401,
-    "asset": "USDT",
-    "time": "13:27:06",
-    "date": "2026-08-24",
-    "timestamp": 1787552826000,
-    "tradeId": "230540144"
-  },
-  {
-    "symbol": "MINAUSDT",
-    "income": 0.0593,
-    "asset": "USDT",
-    "time": "13:27:06",
-    "date": "2026-08-24",
-    "timestamp": 1787552826000,
-    "tradeId": "230540143"
-  },
-  {
-    "symbol": "FETUSDT",
-    "income": -0.0004,
-    "asset": "USDT",
-    "time": "13:26:02",
-    "date": "2026-08-24",
-    "timestamp": 1787552762000,
-    "tradeId": "688406828"
-  },
-  {
-    "symbol": "FETUSDT",
-    "income": -0.0068,
-    "asset": "USDT",
-    "time": "13:26:02",
-    "date": "2026-08-24",
-    "timestamp": 1787552762000,
-    "tradeId": "688406827"
-  },
-  {
-    "symbol": "UNIUSDT",
-    "income": -0.09,
-    "asset": "USDT",
-    "time": "13:25:47",
-    "date": "2026-08-24",
-    "timestamp": 1787552747000,
-    "tradeId": "865318073"
-  },
-  {
-    "symbol": "UNIUSDT",
-    "income": -0.09,
-    "asset": "USDT",
-    "time": "13:25:47",
-    "date": "2026-08-24",
-    "timestamp": 1787552747000,
-    "tradeId": "865318072"
-  },
-  {
-    "symbol": "PENGUUSDT",
-    "income": 0.0062,
-    "asset": "USDT",
-    "time": "13:25:04",
-    "date": "2026-08-24",
-    "timestamp": 1787552704000,
-    "tradeId": "589924913"
-  },
-  {
-    "symbol": "VIRTUALUSDT",
-    "income": 0.0119,
-    "asset": "USDT",
-    "time": "13:24:47",
-    "date": "2026-08-24",
-    "timestamp": 1787552687000,
-    "tradeId": "449139971"
-  },
-  {
-    "symbol": "VIRTUALUSDT",
-    "income": 0.0604,
-    "asset": "USDT",
-    "time": "13:24:47",
-    "date": "2026-08-24",
-    "timestamp": 1787552687000,
-    "tradeId": "449139970"
-  },
-  {
-    "symbol": "ZAMAUSDT",
-    "income": 0.0001,
-    "asset": "USDT",
-    "time": "13:22:04",
-    "date": "2026-08-24",
-    "timestamp": 1787552524000,
-    "tradeId": "53888571"
-  },
-  {
-    "symbol": "ZAMAUSDT",
-    "income": 0.002,
-    "asset": "USDT",
-    "time": "13:22:04",
-    "date": "2026-08-24",
-    "timestamp": 1787552524000,
-    "tradeId": "53888570"
-  },
-  {
-    "symbol": "ETHFIUSDT",
-    "income": 0.0009,
-    "asset": "USDT",
-    "time": "13:21:21",
-    "date": "2026-08-24",
-    "timestamp": 1787552481000,
-    "tradeId": "469920502"
-  },
-  {
-    "symbol": "SPKUSDT",
-    "income": -0.0238,
-    "asset": "USDT",
-    "time": "13:21:09",
-    "date": "2026-08-24",
-    "timestamp": 1787552469000,
-    "tradeId": "155861492"
-  },
-  {
-    "symbol": "SUPERUSDT",
-    "income": -0.0134,
-    "asset": "USDT",
-    "time": "13:21:04",
-    "date": "2026-08-24",
-    "timestamp": 1787552464000,
-    "tradeId": "185005149"
-  },
-  {
-    "symbol": "PROMUSDT",
-    "income": -0.0039,
-    "asset": "USDT",
-    "time": "13:21:02",
-    "date": "2026-08-24",
-    "timestamp": 1787552462000,
-    "tradeId": "75488411"
-  },
-  {
-    "symbol": "PROMUSDT",
-    "income": -0.0048,
-    "asset": "USDT",
-    "time": "13:21:02",
-    "date": "2026-08-24",
-    "timestamp": 1787552462000,
-    "tradeId": "75488410"
-  },
-  {
-    "symbol": "DASHUSDT",
-    "income": 0.0065,
-    "asset": "USDT",
-    "time": "13:20:22",
-    "date": "2026-08-24",
-    "timestamp": 1787552422000,
-    "tradeId": "475138443"
-  },
-  {
-    "symbol": "MORPHOUSDT",
-    "income": 0.0073,
-    "asset": "USDT",
-    "time": "13:18:49",
-    "date": "2026-08-24",
-    "timestamp": 1787552329000,
-    "tradeId": "160296537"
-  },
-  {
-    "symbol": "XPLUSDT",
-    "income": -0.0118,
-    "asset": "USDT",
-    "time": "13:18:06",
-    "date": "2026-08-24",
-    "timestamp": 1787552286000,
-    "tradeId": "295693002"
-  },
-  {
-    "symbol": "XPLUSDT",
-    "income": -0.0112,
-    "asset": "USDT",
-    "time": "13:18:06",
-    "date": "2026-08-24",
-    "timestamp": 1787552286000,
-    "tradeId": "295693001"
-  }
-];
+export const DEFAULT_INCOME_RECORDS: IncomeRecord[] = [];
 
 export async function fetchAccountData(): Promise<{
   account: AccountPortfolio;
   activePositions: ActivePosition[];
   incomeRecords: IncomeRecord[];
 }> {
-  // 1. Try Local Flow Daemon (Live direct sync)
+  const timestamp = Date.now();
+
+  // PRIMARY: Direct Client-Side Signed Binance Query (0 Geo-blocking, 0 Server Latency, 100% Real-Time)
   try {
-    const res = await fetch(`http://localhost:8080/api/account?t=${Date.now()}`, {
+    const query = `recvWindow=60000&timestamp=${timestamp}`;
+    const signature = await signClientQuery(query);
+
+    if (signature) {
+      const headers = { 'X-MBX-APIKEY': API_KEY };
+      
+      const [accRes, posRes, incRes] = await Promise.all([
+        fetch(`https://fapi.binance.com/fapi/v2/account?${query}&signature=${signature}`, {
+          headers,
+          cache: 'no-store',
+          signal: AbortSignal.timeout(3000),
+        }),
+        fetch(`https://fapi.binance.com/fapi/v2/positionRisk?${query}&signature=${signature}`, {
+          headers,
+          cache: 'no-store',
+          signal: AbortSignal.timeout(3000),
+        }),
+        fetch(`https://fapi.binance.com/fapi/v1/income?incomeType=REALIZED_PNL&limit=100&${query}&signature=${signature}`, {
+          headers,
+          cache: 'no-store',
+          signal: AbortSignal.timeout(3000),
+        })
+      ]);
+
+      if (accRes.ok && posRes.ok) {
+        const accData = await accRes.json();
+        const posData = await posRes.json();
+        const incData = incRes.ok ? await incRes.json() : [];
+
+        const walletBal = parseFloat(accData.totalWalletBalance || '5.42');
+        const unrealPnl = parseFloat(accData.totalUnrealizedProfit || '0');
+        const availBal = parseFloat(accData.availableBalance || '5.42');
+        const marginUsed = Math.max(0, walletBal - availBal);
+
+        const activePositions: ActivePosition[] = Array.isArray(posData)
+          ? posData
+              .filter((p: any) => parseFloat(p.positionAmt) !== 0)
+              .map((p: any) => {
+                const amt = parseFloat(p.positionAmt);
+                const isLong = amt > 0;
+                const entry = parseFloat(p.entryPrice) || 1;
+                const mark = parseFloat(p.markPrice) || entry;
+                const pnl = parseFloat(p.unRealizedProfit) || 0;
+                const lev = parseInt(p.leverage || '50');
+                const margin = Math.abs(amt * entry) / (lev || 50);
+                const pnlPct = margin > 0 ? (pnl / margin) * 100 : 0;
+
+                return {
+                  symbol: p.symbol,
+                  direction: isLong ? 'LONG' : 'SHORT',
+                  size: Math.abs(amt),
+                  notional: Number(Math.abs(amt * mark).toFixed(2)),
+                  margin: Number(margin.toFixed(2)),
+                  leverage: lev,
+                  entryPrice: entry,
+                  markPrice: mark,
+                  unrealizedPnl: Number(pnl.toFixed(4)),
+                  unrealizedPnlPct: Number(pnlPct.toFixed(2)),
+                  liquidationPrice: parseFloat(p.liquidationPrice || '0'),
+                  tp1: Number((isLong ? entry * 1.012 : entry * 0.988).toFixed(entry < 0.1 ? 5 : entry < 10 ? 4 : 2)),
+                  tp2: Number((isLong ? entry * 1.024 : entry * 0.976).toFixed(entry < 0.1 ? 5 : entry < 10 ? 4 : 2)),
+                  tp3: Number((isLong ? entry * 1.042 : entry * 0.958).toFixed(entry < 0.1 ? 5 : entry < 10 ? 4 : 2)),
+                  stopLoss: Number((isLong ? entry * 0.985 : entry * 1.015).toFixed(entry < 0.1 ? 5 : entry < 10 ? 4 : 2)),
+                };
+              })
+          : [];
+
+        const incomeRecords: IncomeRecord[] = Array.isArray(incData)
+          ? incData.map((i: any) => ({
+              symbol: i.symbol,
+              income: parseFloat(i.income),
+              asset: i.asset,
+              time: new Date(i.time).toLocaleTimeString(),
+              date: new Date(i.time).toISOString().split('T')[0],
+              timestamp: i.time,
+              tradeId: i.tradeId,
+            }))
+          : [];
+
+        const netPnl = incomeRecords.reduce((sum, r) => sum + r.income, 0);
+        const wins = incomeRecords.filter((r) => r.income > 0).length;
+        const losses = incomeRecords.filter((r) => r.income < 0).length;
+        const winRate = (wins + losses) > 0 ? (wins / (wins + losses)) * 100 : 0;
+
+        return {
+          account: {
+            totalEquity: Number((walletBal + unrealPnl).toFixed(2)),
+            walletBalance: Number(walletBal.toFixed(2)),
+            availableBalance: Number(availBal.toFixed(2)),
+            marginUsed: Number(marginUsed.toFixed(2)),
+            unrealizedPnl: Number(unrealPnl.toFixed(4)),
+            netRealizedPnl: Number(netPnl.toFixed(2)),
+            winRate: Number(winRate.toFixed(1)),
+            winTrades: wins,
+            loseTrades: losses,
+            totalTrades: incomeRecords.length,
+          },
+          activePositions,
+          incomeRecords,
+        };
+      }
+    }
+  } catch (clientErr) {}
+
+  // FALLBACK 1: Local Daemon
+  try {
+    const res = await fetch(`http://localhost:8080/api/account?t=${timestamp}`, {
       cache: 'no-store',
-      signal: AbortSignal.timeout(1500)
+      signal: AbortSignal.timeout(1500),
     });
     if (res.ok) {
       const data = await res.json();
@@ -935,17 +169,17 @@ export async function fetchAccountData(): Promise<{
         return {
           account: data.account,
           activePositions: Array.isArray(data.activePositions) ? data.activePositions : [],
-          incomeRecords: Array.isArray(data.incomeRecords) && data.incomeRecords.length > 0 ? data.incomeRecords : DEFAULT_INCOME_RECORDS,
+          incomeRecords: Array.isArray(data.incomeRecords) ? data.incomeRecords : [],
         };
       }
     }
   } catch (e) {}
 
-  // 2. Try Vercel Serverless Endpoint
+  // FALLBACK 2: Vercel Proxy
   try {
-    const res = await fetch(`/api/account?t=${Date.now()}`, {
+    const res = await fetch(`/api/account?t=${timestamp}`, {
       cache: 'no-store',
-      signal: AbortSignal.timeout(3000)
+      signal: AbortSignal.timeout(2000),
     });
     if (res.ok) {
       const data = await res.json();
@@ -953,7 +187,7 @@ export async function fetchAccountData(): Promise<{
         return {
           account: data.account,
           activePositions: Array.isArray(data.activePositions) ? data.activePositions : [],
-          incomeRecords: Array.isArray(data.incomeRecords) && data.incomeRecords.length > 0 ? data.incomeRecords : DEFAULT_INCOME_RECORDS,
+          incomeRecords: Array.isArray(data.incomeRecords) ? data.incomeRecords : [],
         };
       }
     }
@@ -962,7 +196,7 @@ export async function fetchAccountData(): Promise<{
   return {
     account: DEFAULT_ACCOUNT,
     activePositions: [],
-    incomeRecords: DEFAULT_INCOME_RECORDS,
+    incomeRecords: [],
   };
 }
 
@@ -970,13 +204,13 @@ export async function fetchAllMarketCoins(): Promise<FlowMarketData[]> {
   try {
     const res = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?t=${Date.now()}`, {
       cache: 'no-store',
-      signal: AbortSignal.timeout(4000)
+      signal: AbortSignal.timeout(4000),
     });
     if (res.ok) {
       const tickers = await res.json();
       if (Array.isArray(tickers)) {
         const usdtPairs = tickers.filter((t: any) => t.symbol.endsWith('USDT') && parseFloat(t.quoteVolume) > 100000);
-        
+
         return usdtPairs.map((t: any) => {
           const pct = parseFloat(t.priceChangePercent) || 0;
           const p = parseFloat(t.lastPrice) || 1;
@@ -988,7 +222,7 @@ export async function fetchAllMarketCoins(): Promise<FlowMarketData[]> {
 
           if (pct >= 2.0) scoreLong += 2;
           else if (pct >= 0.5) scoreLong += 1;
-          
+
           if (pct <= -2.0) scoreShort += 2;
           else if (pct <= -0.5) scoreShort += 1;
 
