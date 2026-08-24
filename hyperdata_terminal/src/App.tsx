@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Header } from './components/Header';
 import { PortfolioHeader } from './components/PortfolioHeader';
 import { ActivePositionsList } from './components/ActivePositionsList';
-import { PositionAlertModal } from './components/PositionAlertModal';
 import { AccountGrowthChart } from './components/AccountGrowthChart';
 import { PnlDailyCalendar } from './components/PnlDailyCalendar';
 import { TradeHistoryResults } from './components/TradeHistoryResults';
@@ -17,7 +16,6 @@ export function App() {
   const [account, setAccount] = useState<AccountPortfolio>(DEFAULT_ACCOUNT);
   const [activePositions, setActivePositions] = useState<ActivePosition[]>(DEFAULT_POSITIONS);
   const [incomeRecords, setIncomeRecords] = useState<IncomeRecord[]>(DEFAULT_INCOME_RECORDS);
-  const [alertPosition, setAlertPosition] = useState<ActivePosition | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<string>(new Date().toLocaleTimeString());
   const [tickDirection, setTickDirection] = useState<Record<string, 'UP' | 'DOWN' | 'NONE'>>({});
@@ -25,39 +23,15 @@ export function App() {
 
   const tickCountRef = useRef<number>(0);
   const flashTimeoutRef = useRef<Record<string, any>>({});
-  const knownSymbolsRef = useRef<Set<string>>(new Set(DEFAULT_POSITIONS.map((p) => p.symbol)));
 
-  // Trigger test alert pop-up for preview
-  const handleTriggerTestAlert = () => {
-    const sample: ActivePosition = {
-      symbol: 'PORTALUSDT',
-      direction: 'LONG',
-      size: 369.0,
-      notional: 6.00,
-      margin: 0.60,
-      leverage: 10,
-      entryPrice: 0.01626,
-      markPrice: 0.01682,
-      unrealizedPnl: 0.2085,
-      unrealizedPnlPct: 34.7,
-      liquidationPrice: 0.01460,
-      tp1: 0.01646,
-      tp2: 0.01665,
-      tp3: 0.01694,
-      stopLoss: 0.01602,
-    };
-    setAlertPosition(sample);
-  };
-
-  // Pure Zero-Weight WebSocket Price Dispatcher
+  // Pure Zero-Weight WebSocket Price Dispatcher with Clean Exact PnL Calculation
   const handlePriceUpdate = useCallback((priceMap: Map<string, number>) => {
     tickCountRef.current += 1;
 
-    // 1. Update active open positions & floating PnL
+    // 1. Update active open positions & floating PnL exactly
     setActivePositions((prevPositions) => {
       if (!prevPositions || prevPositions.length === 0) return prevPositions;
       let hasChange = false;
-      let sumUnrealized = 0;
 
       const next = prevPositions.map((pos) => {
         const newPrice = priceMap.get(pos.symbol);
@@ -67,7 +41,6 @@ export function App() {
             ? (newPrice - pos.entryPrice) * pos.size
             : (pos.entryPrice - newPrice) * pos.size;
           const pnlPct = pos.margin > 0 ? (pnl / pos.margin) * 100 : 0;
-          sumUnrealized += pnl;
 
           if (Math.abs(newPrice - pos.markPrice) > 0.00001) {
             hasChange = true;
@@ -87,19 +60,16 @@ export function App() {
             };
           }
         }
-        sumUnrealized += pos.unrealizedPnl;
         return pos;
       });
 
       if (hasChange) {
-        setAccount((prevAcc) => {
-          const newEq = prevAcc.walletBalance + sumUnrealized;
-          return {
-            ...prevAcc,
-            unrealizedPnl: Number(sumUnrealized.toFixed(4)),
-            totalEquity: Number(newEq.toFixed(2)),
-          };
-        });
+        const sumUnrealized = next.reduce((sum, p) => sum + p.unrealizedPnl, 0);
+        setAccount((prevAcc) => ({
+          ...prevAcc,
+          unrealizedPnl: Number(sumUnrealized.toFixed(4)),
+          totalEquity: Number((prevAcc.walletBalance + sumUnrealized).toFixed(2)),
+        }));
       }
 
       return hasChange ? next : prevPositions;
@@ -127,7 +97,7 @@ export function App() {
     setLastUpdated(new Date().toLocaleTimeString());
   }, []);
 
-  // Safe periodic account reconciler (every 3.5s, uses < 2% of Binance limit)
+  // Safe periodic account reconciler (2s interval)
   const loadBaseAccount = async (force: boolean = false) => {
     try {
       const [accRes, coinsRes] = await Promise.all([
@@ -144,17 +114,6 @@ export function App() {
         
         if (accRes.activePositions) {
           const newPositions = accRes.activePositions;
-          
-          for (const pos of newPositions) {
-            if (!knownSymbolsRef.current.has(pos.symbol)) {
-              knownSymbolsRef.current.add(pos.symbol);
-              setAlertPosition(pos);
-              break;
-            }
-          }
-
-          const currentSymbols = new Set(newPositions.map((p) => p.symbol));
-          knownSymbolsRef.current = currentSymbols;
 
           setActivePositions((prev) => {
             if (prev.length !== newPositions.length) return newPositions;
@@ -188,7 +147,6 @@ export function App() {
 
   useEffect(() => {
     loadBaseAccount(true);
-    // Safe gentle 3.5-second account reconcile (uses 0 rate limit issues)
     const accountPoll = setInterval(() => loadBaseAccount(false), 2000);
 
     // Speedometer: calculate ticks/sec every second
@@ -260,21 +218,17 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-6 font-sans antialiased relative">
-      {/* Auto Pop-Up Alert Modal when a new position opens */}
-      <PositionAlertModal alertPosition={alertPosition} onClose={() => setAlertPosition(null)} />
-
       <div className="max-w-[1600px] mx-auto space-y-6">
-        {/* 1. Header with Tick Speedometer and Test Alert trigger */}
+        {/* 1. Header with Tick Speedometer */}
         <Header
           lastUpdated={lastUpdated}
           onRefresh={() => loadBaseAccount(true)}
           isLoading={isLoading}
           ticksPerSec={ticksPerSec}
-          onTriggerTestAlert={handleTriggerTestAlert}
         />
 
-        {/* 2. Real-Time Hero Portfolio & Realized PnL Overview */}
-        <PortfolioHeader account={account} activeCount={activePositions.length} />
+        {/* 2. Real-Time Hero Portfolio & Realized PnL Overview (100% Exact Floating Sum) */}
+        <PortfolioHeader account={account} activePositions={activePositions} />
 
         {/* 3. Dedicated Real-Time Open Positions Monitor with Live Tick Flashing */}
         <ActivePositionsList positions={activePositions} tickDirection={tickDirection} />

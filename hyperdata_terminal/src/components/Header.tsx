@@ -1,15 +1,19 @@
 import React from 'react';
-import { Bell, Bot, RefreshCw, Zap } from 'lucide-react';
+import { Bot, RefreshCw, Zap } from 'lucide-react';
 
 interface Props {
   lastUpdated: string;
   onRefresh: () => void;
   isLoading: boolean;
   ticksPerSec?: number;
-  onTriggerTestAlert?: () => void;
 }
 
-export const Header: React.FC<Props> = ({ lastUpdated, onRefresh, isLoading, ticksPerSec = 24, onTriggerTestAlert }) => {
+export const Header: React.FC<Props> = ({
+  lastUpdated,
+  onRefresh,
+  isLoading,
+  ticksPerSec = 24,
+}) => {
   return (
     <header className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-5 border-b border-slate-800/80">
       <div className="flex items-center gap-3">
@@ -33,26 +37,14 @@ export const Header: React.FC<Props> = ({ lastUpdated, onRefresh, isLoading, tic
           <span className="font-bold text-slate-200">Freqtrade:</span>
           <span className="text-emerald-400 font-extrabold">24/7 ACTIVE</span>
         </div>
+
         <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 border border-emerald-500/30 rounded-xl">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
           <span className="font-bold text-emerald-400 flex items-center gap-1">
             <Zap className="w-3.5 h-3.5 fill-emerald-400" />
             {ticksPerSec} Ticks/sec
           </span>
-          <span className="text-slate-500 text-[10px]">&bull; Direct FStream</span>
         </div>
-
-        {/* Test Alert Pop-Up Button */}
-        {onTriggerTestAlert && (
-          <button
-            onClick={onTriggerTestAlert}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-500/40 text-cyan-300 font-bold rounded-xl transition-all shadow-sm shadow-cyan-950/40"
-            title="Preview Auto Pop-Up Alert"
-          >
-            <Bell className="w-3.5 h-3.5 text-cyan-400 animate-bounce" />
-            <span>🔔 Preview Pop-Up</span>
-          </button>
-        )}
 
         <button onClick={onRefresh} className="p-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl transition-all" title="Refresh Flow Data">
           <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-cyan-400' : ''}`} />
