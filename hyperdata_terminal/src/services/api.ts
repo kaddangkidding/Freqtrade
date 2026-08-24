@@ -4,31 +4,6 @@ import defaultRecords from './default_income.json';
 const API_KEY = 'SijchDXpN3dpJA5lYiCBQOgMC2ijnNgcR0UdVgncZYNeHP7RdBgMaj719I8y5WnY';
 const SECRET_KEY = 'zMQrvKFOV1CDGuGhx0kevzxhuCFgP0aDJ53W396C1M5BfIaoUEXYGGIziYp9qQZw';
 
-// Fast Browser-Native Web Crypto HMAC-SHA256 Signer
-async function signClientQuery(queryString: string): Promise<string> {
-  try {
-    const encoder = new TextEncoder();
-    const keyData = encoder.encode(SECRET_KEY);
-    const key = await window.crypto.subtle.importKey(
-      'raw',
-      keyData,
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign']
-    );
-    const signature = await window.crypto.subtle.sign(
-      'HMAC',
-      key,
-      encoder.encode(queryString)
-    );
-    return Array.from(new Uint8Array(signature))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-  } catch (e) {
-    return '';
-  }
-}
-
 export const DEFAULT_INCOME_RECORDS: IncomeRecord[] = defaultRecords as IncomeRecord[];
 
 export const DEFAULT_ACCOUNT: AccountPortfolio = {
@@ -117,6 +92,31 @@ export const DEFAULT_POSITIONS: ActivePosition[] = [
 
 let cachedIncomeRecords: IncomeRecord[] = DEFAULT_INCOME_RECORDS;
 
+// Fast Browser-Native Web Crypto HMAC-SHA256 Signer
+async function signClientQuery(queryString: string): Promise<string> {
+  try {
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(SECRET_KEY);
+    const key = await window.crypto.subtle.importKey(
+      'raw',
+      keyData,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    const signature = await window.crypto.subtle.sign(
+      'HMAC',
+      key,
+      encoder.encode(queryString)
+    );
+    return Array.from(new Uint8Array(signature))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  } catch (e) {
+    return '';
+  }
+}
+
 export async function fetchAccountData(forceIncome: boolean = false): Promise<{
   account: AccountPortfolio;
   activePositions: ActivePosition[];
@@ -124,7 +124,28 @@ export async function fetchAccountData(forceIncome: boolean = false): Promise<{
 }> {
   const timestamp = Date.now();
 
-  // 1. PRIMARY: Direct Client-Side Signed Binance Query (Real-Time Trade History Continuous Sync)
+  // 1. PRIMARY: Direct Local Server (100% Unblocked & Real-Time Sync)
+  try {
+    const res = await fetch(`http://localhost:8080/api/account?t=${timestamp}`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(1500),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.account) {
+        if (Array.isArray(data.incomeRecords) && data.incomeRecords.length > 0) {
+          cachedIncomeRecords = data.incomeRecords;
+        }
+        return {
+          account: data.account,
+          activePositions: Array.isArray(data.activePositions) ? data.activePositions : [],
+          incomeRecords: cachedIncomeRecords,
+        };
+      }
+    }
+  } catch (e) {}
+
+  // 2. SECONDARY: Direct Browser WebCrypto Binance Query
   try {
     const query = `recvWindow=60000&timestamp=${timestamp}`;
     const signature = await signClientQuery(query);
@@ -136,17 +157,17 @@ export async function fetchAccountData(forceIncome: boolean = false): Promise<{
         fetch(`https://fapi.binance.com/fapi/v2/account?${query}&signature=${signature}`, {
           headers,
           cache: 'no-store',
-          signal: AbortSignal.timeout(3000),
+          signal: AbortSignal.timeout(2500),
         }),
         fetch(`https://fapi.binance.com/fapi/v2/positionRisk?${query}&signature=${signature}`, {
           headers,
           cache: 'no-store',
-          signal: AbortSignal.timeout(3000),
+          signal: AbortSignal.timeout(2500),
         }),
         fetch(`https://fapi.binance.com/fapi/v1/income?incomeType=REALIZED_PNL&limit=100&${query}&signature=${signature}`, {
           headers,
           cache: 'no-store',
-          signal: AbortSignal.timeout(3000),
+          signal: AbortSignal.timeout(2500),
         })
       ];
 
@@ -166,7 +187,7 @@ export async function fetchAccountData(forceIncome: boolean = false): Promise<{
               .map((i: any) => ({
                 symbol: i.symbol,
                 income: parseFloat(i.income),
-                asset: i.asset,
+                asset: i.asset || 'USDT',
                 time: new Date(i.time).toLocaleTimeString(),
                 date: new Date(i.time).toISOString().split('T')[0],
                 timestamp: i.time,
@@ -238,27 +259,6 @@ export async function fetchAccountData(forceIncome: boolean = false): Promise<{
       }
     }
   } catch (clientErr) {}
-
-  // 2. FALLBACK TIER 1: Local Daemon Endpoint
-  try {
-    const res = await fetch(`http://localhost:8080/api/account?t=${timestamp}`, {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(1500),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.account) {
-        if (Array.isArray(data.incomeRecords) && data.incomeRecords.length > 0) {
-          cachedIncomeRecords = data.incomeRecords;
-        }
-        return {
-          account: data.account,
-          activePositions: Array.isArray(data.activePositions) ? data.activePositions : [],
-          incomeRecords: cachedIncomeRecords,
-        };
-      }
-    }
-  } catch (e) {}
 
   return {
     account: DEFAULT_ACCOUNT,
