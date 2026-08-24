@@ -18,9 +18,8 @@ export function App() {
   const [incomeRecords, setIncomeRecords] = useState<IncomeRecord[]>(DEFAULT_INCOME_RECORDS);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<string>(new Date().toLocaleTimeString());
-  const [isLiveTicking, setIsLiveTicking] = useState<boolean>(true);
 
-  // Load account & all 300+ markets from REST backend
+  // Load base account data & market catalog
   const loadAllData = async () => {
     try {
       const [accRes, coinsRes] = await Promise.all([
@@ -31,20 +30,23 @@ export function App() {
       if (accRes.account) {
         setAccount((prev) => ({
           ...accRes.account,
-          // Preserve floating live unrealized PnL computed by WebSocket
           unrealizedPnl: prev.unrealizedPnl !== 0 ? prev.unrealizedPnl : accRes.account.unrealizedPnl,
           totalEquity: prev.totalEquity !== DEFAULT_ACCOUNT.totalEquity ? prev.totalEquity : accRes.account.totalEquity,
         }));
-        if (accRes.activePositions && accRes.activePositions.length > 0) {
-          setActivePositions(accRes.activePositions);
-        }
         if (accRes.incomeRecords && accRes.incomeRecords.length > 0) {
           setIncomeRecords(accRes.incomeRecords);
         }
       }
 
       if (coinsRes && coinsRes.length > 0) {
-        setData(coinsRes);
+        setData((prev) => {
+          if (prev.length === 0) return coinsRes;
+          // Keep existing real-time prices
+          return coinsRes.map((c) => {
+            const cur = prev.find((p) => p.symbol === c.symbol);
+            return cur ? { ...c, current_price: cur.current_price, price_change_24h: cur.price_change_24h } : c;
+          });
+        });
       }
       setLastUpdated(new Date().toLocaleTimeString());
     } catch (e) {
@@ -54,9 +56,9 @@ export function App() {
 
   useEffect(() => {
     loadAllData();
-    const interval = setInterval(loadAllData, 3000);
+    const interval = setInterval(loadAllData, 4000);
 
-    // High-Frequency Real-time Binance WebSocket Stream for sub-second live ticks
+    // Direct Binance High-Frequency WebSocket Stream
     let ws: WebSocket | null = null;
     try {
       ws = new WebSocket('wss://fstream.binance.com/ws/!miniTicker@arr');
@@ -69,7 +71,55 @@ export function App() {
               tickerMap.set(t.s, t);
             }
 
-            // 1. REAL-TIME: Update live prices AND 24h percentage change for all 300+ coins
+            // 1. REAL-TIME: Update active positions mark price, floating PnL, and ROE %
+            setActivePositions((prevPositions) => {
+              if (prevPositions.length === 0) return prevPositions;
+              let totalUnpnl = 0;
+              let posChanged = false;
+
+              const nextPositions = prevPositions.map((pos) => {
+                const tick = tickerMap.get(pos.symbol);
+                if (tick) {
+                  const newMark = parseFloat(tick.c);
+                  if (newMark) {
+                    const isLong = pos.direction === 'LONG';
+                    const pnl = isLong
+                      ? (newMark - pos.entryPrice) * pos.size
+                      : (pos.entryPrice - newMark) * pos.size;
+                    const pnlPct = pos.margin > 0 ? (pnl / pos.margin) * 100 : 0;
+                    totalUnpnl += pnl;
+
+                    if (newMark !== pos.markPrice || Math.abs(pnl - pos.unrealizedPnl) > 0.0001) {
+                      posChanged = true;
+                      return {
+                        ...pos,
+                        markPrice: newMark,
+                        unrealizedPnl: pnl,
+                        unrealizedPnlPct: pnlPct,
+                      };
+                    }
+                  }
+                }
+                totalUnpnl += pos.unrealizedPnl;
+                return pos;
+              });
+
+              // 2. REAL-TIME: Recompute total live floating unrealized PnL & total equity
+              if (posChanged) {
+                setAccount((prevAcc) => {
+                  const newEquity = prevAcc.walletBalance + totalUnpnl;
+                  return {
+                    ...prevAcc,
+                    unrealizedPnl: totalUnpnl,
+                    totalEquity: Number(newEquity.toFixed(2)),
+                  };
+                });
+              }
+
+              return posChanged ? nextPositions : prevPositions;
+            });
+
+            // 3. REAL-TIME: Update 300+ coin grid prices and 24h % change
             setData((prevData) => {
               if (prevData.length === 0) return prevData;
               let changed = false;
@@ -95,54 +145,6 @@ export function App() {
               return changed ? nextData : prevData;
             });
 
-            // 2. REAL-TIME: Update active positions mark price, unrealized PnL, and ROE %
-            setActivePositions((prevPositions) => {
-              if (prevPositions.length === 0) return prevPositions;
-              let posChanged = false;
-              let currentTotalUnpnl = 0;
-
-              const nextPositions = prevPositions.map((pos) => {
-                const tick = tickerMap.get(pos.symbol);
-                if (tick) {
-                  const newMark = parseFloat(tick.c);
-                  if (newMark) {
-                    const isLong = pos.direction === 'LONG';
-                    const pnl = isLong
-                      ? (newMark - pos.entryPrice) * pos.size
-                      : (pos.entryPrice - newMark) * pos.size;
-                    const pnlPct = pos.margin > 0 ? (pnl / pos.margin) * 100 : 0;
-                    currentTotalUnpnl += pnl;
-
-                    if (newMark !== pos.markPrice) {
-                      posChanged = true;
-                      return {
-                        ...pos,
-                        markPrice: newMark,
-                        unrealizedPnl: Number(pnl.toFixed(4)),
-                        unrealizedPnlPct: Number(pnlPct.toFixed(2)),
-                      };
-                    }
-                  }
-                }
-                currentTotalUnpnl += pos.unrealizedPnl;
-                return pos;
-              });
-
-              // 3. REAL-TIME: Recompute total equity & unrealized PnL on every tick
-              if (posChanged) {
-                setAccount((prevAcc) => {
-                  const newEquity = prevAcc.walletBalance + currentTotalUnpnl;
-                  return {
-                    ...prevAcc,
-                    unrealizedPnl: Number(currentTotalUnpnl.toFixed(4)),
-                    totalEquity: Number(newEquity.toFixed(2)),
-                  };
-                });
-              }
-
-              return posChanged ? nextPositions : prevPositions;
-            });
-
             setLastUpdated(new Date().toLocaleTimeString());
           }
         } catch (err) {}
@@ -162,7 +164,7 @@ export function App() {
         <Header lastUpdated={lastUpdated} onRefresh={loadAllData} isLoading={isLoading} />
 
         {/* 2. Real-Time Hero Portfolio & Realized PnL Overview */}
-        <PortfolioHeader account={account} activeCount={activePositions.length} isLiveTicking={isLiveTicking} />
+        <PortfolioHeader account={account} activeCount={activePositions.length} />
 
         {/* 3. Dedicated Real-Time Open Positions Monitor */}
         <ActivePositionsList positions={activePositions} />
