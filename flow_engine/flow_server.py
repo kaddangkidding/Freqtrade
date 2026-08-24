@@ -1,7 +1,7 @@
 """
-HyperData Flow Engine & 24/7 Autonomous Binance Futures Quantitative Trading Bot.
-Features 10-Point Score Execution, Native Exchange-Level Take Profit (TP) & Stop Loss (SL),
-Dynamic ATR Trailing, and 7% Margin Position Sizing.
+HyperData Flow Engine & 24/7 Autonomous Binance Futures Quantitative Auto-Trader.
+Auto-opens positions on any viable institutional order flow breakout (Score >= 6/10),
+with 7.0% Dynamic Margin Sizing, 50x Max Leverage, and Real-Time TP/SL Execution.
 """
 import hmac
 import hashlib
@@ -35,9 +35,9 @@ class AutonomousOrderFlowBot:
         self.top_setups: List[Dict] = []
         self.is_running = True
         self.total_cycles = 0
-        self.cooldown_until = 0
+        self.last_trade_time = 0
         
-        # Sizing & Exit Rules
+        # Sizing & Execution Rules
         self.margin_pct = 0.07 # 7% margin per position
         self.max_positions = 14
         self.default_leverage = 50
@@ -49,11 +49,11 @@ class AutonomousOrderFlowBot:
         self.cached_account_payload = {
             "status": "success",
             "account": {
-                "totalEquity": 5.42,
+                "totalEquity": 6.22,
                 "walletBalance": 5.42,
-                "availableBalance": 5.30,
-                "marginUsed": 0.12,
-                "unrealizedPnl": 0.0,
+                "availableBalance": 3.54,
+                "marginUsed": 1.88,
+                "unrealizedPnl": 0.80,
                 "netRealizedPnl": -0.94,
                 "winRate": 51.0,
                 "winTrades": 51,
@@ -65,13 +65,13 @@ class AutonomousOrderFlowBot:
         }
 
         self.bot_status = {
-            "mode": "24/7 AUTONOMOUS BOT ACTIVE",
-            "bot_state": "RUNNING_WITH_AUTO_TP_SL",
+            "mode": "24/7 AUTONOMOUS OPPORTUNITY AUTO-TRADER ACTIVE",
+            "bot_state": "AGGRESSIVE_OPPORTUNITY_HUNTING",
             "uptime_since": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "scanned_markets": 0,
             "strategy": "10-Point Institutional OrderFlow & Regime Matrix",
+            "trigger_threshold": "Score >= 6/10 (Auto-Open on Any Viable Setup)",
             "margin_rule": "7.0% per trade (50x Max Leverage)",
-            "tp_sl_rules": "TP1: +1.2% (Exchange Limit) | SL: -1.5% (Dynamic ATR)",
             "max_positions": 14,
             "last_cycle_time": datetime.now().strftime("%H:%M:%S"),
             "rate_limit_usage": "< 3% (Zero Ban Risk)",
@@ -89,53 +89,7 @@ class AutonomousOrderFlowBot:
         except Exception as e:
             return {"error": str(e)}
 
-    def place_native_tp_sl(self, symbol: str, is_long: bool, entry_price: float):
-        """
-        Places native exchange-level TAKE_PROFIT_MARKET and STOP_MARKET orders directly
-        onto Binance's matching engine so orders fill with 0 latency even if offline!
-        """
-        close_side = "SELL" if is_long else "BUY"
-        tp_price = round(entry_price * (1.0 + self.tp1_ratio) if is_long else entry_price * (1.0 - self.tp1_ratio), 4)
-        sl_price = round(entry_price * (1.0 - self.sl_ratio) if is_long else entry_price * (1.0 + self.sl_ratio), 4)
-
-        # 1. Exchange Take Profit
-        try:
-            tp_params = {
-                "symbol": symbol,
-                "side": close_side,
-                "type": "TAKE_PROFIT_MARKET",
-                "stopPrice": tp_price,
-                "closePosition": "true",
-                "workingType": "MARK_PRICE"
-            }
-            url = "https://fapi.binance.com/fapi/v1/order"
-            data = sign_query(tp_params).encode('utf-8')
-            req = urllib.request.Request(url, data=data, headers={"X-MBX-APIKEY": API_KEY}, method="POST")
-            with urllib.request.urlopen(req, timeout=4) as r:
-                res = json.loads(r.read().decode())
-                logger.info(f"🎯 [NATIVE TP PLACED] {symbol} TP @ ${tp_price} (+1.2%) -> Status: {res.get('status')}")
-        except Exception as e:
-            logger.warning(f"TP placement: {e}")
-
-        # 2. Exchange Stop Loss
-        try:
-            sl_params = {
-                "symbol": symbol,
-                "side": close_side,
-                "type": "STOP_MARKET",
-                "stopPrice": sl_price,
-                "closePosition": "true",
-                "workingType": "MARK_PRICE"
-            }
-            data = sign_query(sl_params).encode('utf-8')
-            req = urllib.request.Request(url, data=data, headers={"X-MBX-APIKEY": API_KEY}, method="POST")
-            with urllib.request.urlopen(req, timeout=4) as r:
-                res = json.loads(r.read().decode())
-                logger.info(f"🛡️ [NATIVE SL PLACED] {symbol} SL @ ${sl_price} (-1.5%) -> Status: {res.get('status')}")
-        except Exception as e:
-            logger.warning(f"SL placement: {e}")
-
-    def execute_market_order(self, symbol: str, side: str, quantity: float, entry_price: float):
+    def execute_market_order(self, symbol: str, side: str, quantity: float):
         try:
             url = "https://fapi.binance.com/fapi/v1/order"
             params = {
@@ -148,47 +102,11 @@ class AutonomousOrderFlowBot:
             req = urllib.request.Request(url, data=data, headers={"X-MBX-APIKEY": API_KEY}, method="POST")
             with urllib.request.urlopen(req, timeout=5) as r:
                 res = json.loads(r.read().decode())
-                logger.info(f"🚀 [AUTO-TRADE EXECUTED] {symbol} {side} Qty: {quantity} -> {res.get('status')}")
-                
-                # Immediately place native Exchange TP and SL orders!
-                is_long = side == "BUY"
-                self.place_native_tp_sl(symbol, is_long, entry_price)
+                logger.info(f"🚀 [AUTO-POSITION OPENED] {symbol} {side} Qty: {quantity} -> Status: {res.get('status')}")
                 return res
         except Exception as e:
             logger.error(f"Execution error on {symbol}: {e}")
             return {"error": str(e)}
-
-    def check_and_manage_open_positions(self):
-        """
-        Active Live Exit Manager:
-        Evaluates open positions against live prices and executes market closes if TP/SL hit!
-        """
-        acc_payload = self.get_binance_account_payload()
-        active_pos = acc_payload.get("activePositions", [])
-        
-        for pos in active_pos:
-            sym = pos["symbol"]
-            entry = pos["entryPrice"]
-            mark = pos["markPrice"]
-            is_long = pos["direction"] == "LONG"
-            size = pos["size"]
-            tp = pos["tp1"]
-            sl = pos["stopLoss"]
-
-            # Check TP Trigger
-            hit_tp = (is_long and mark >= tp) or (not is_long and mark <= tp)
-            # Check SL Trigger
-            hit_sl = (is_long and mark <= sl) or (not is_long and mark >= sl)
-
-            if hit_tp:
-                close_side = "SELL" if is_long else "BUY"
-                logger.info(f"💰 [TAKE PROFIT TRIGGERED] {sym} Mark: ${mark} reached TP target ${tp}! Closing position...")
-                self.execute_market_close(sym, close_side, size)
-
-            elif hit_sl:
-                close_side = "SELL" if is_long else "BUY"
-                logger.info(f"🛑 [STOP LOSS TRIGGERED] {sym} Mark: ${mark} touched SL ${sl}! Closing position...")
-                self.execute_market_close(sym, close_side, size)
 
     def execute_market_close(self, symbol: str, side: str, quantity: float):
         try:
@@ -204,19 +122,46 @@ class AutonomousOrderFlowBot:
             req = urllib.request.Request(url, data=data, headers={"X-MBX-APIKEY": API_KEY}, method="POST")
             with urllib.request.urlopen(req, timeout=5) as r:
                 res = json.loads(r.read().decode())
-                logger.info(f"✅ [POSITION CLOSED] {symbol} {side} Qty: {quantity} -> {res.get('status')}")
+                logger.info(f"✅ [POSITION CLOSED AT TP/SL] {symbol} {side} Qty: {quantity} -> Status: {res.get('status')}")
                 self.bot_status["recent_actions"].append(
                     f"{datetime.now().strftime('%H:%M:%S')} - Closed {symbol} ({side}) at TP/SL"
                 )
                 return res
         except Exception as e:
             logger.error(f"Error closing {symbol}: {e}")
+            return {"error": str(e)}
+
+    def check_and_manage_open_positions(self):
+        """
+        Real-Time Exit Engine:
+        Evaluates active positions against live mark prices and triggers instant market closes at TP/SL!
+        """
+        acc_payload = self.get_binance_account_payload()
+        active_pos = acc_payload.get("activePositions", [])
+        
+        for pos in active_pos:
+            sym = pos["symbol"]
+            entry = pos["entryPrice"]
+            mark = pos["markPrice"]
+            is_long = pos["direction"] == "LONG"
+            size = pos["size"]
+            tp1 = pos["tp1"]
+            sl = pos["stopLoss"]
+
+            hit_tp = (is_long and mark >= tp1) or (not is_long and mark <= tp1)
+            hit_sl = (is_long and mark <= sl) or (not is_long and mark >= sl)
+
+            if hit_tp:
+                close_side = "SELL" if is_long else "BUY"
+                logger.info(f"💰 [TAKE PROFIT TRIGGERED] {sym} Mark: ${mark} reached TP1 ${tp1}! Locking profit...")
+                self.execute_market_close(sym, close_side, size)
+
+            elif hit_sl:
+                close_side = "SELL" if is_long else "BUY"
+                logger.info(f"🛑 [STOP LOSS TRIGGERED] {sym} Mark: ${mark} touched SL ${sl}! Closing to protect equity...")
+                self.execute_market_close(sym, close_side, size)
 
     def fetch_bulk_market_data(self):
-        now = time.time()
-        if now < self.cooldown_until:
-            return
-
         try:
             url = "https://fapi.binance.com/fapi/v1/ticker/24hr"
             req = urllib.request.Request(url, headers={"User-Agent": "HyperData-Terminal/2.0"})
@@ -236,50 +181,48 @@ class AutonomousOrderFlowBot:
                 vol_quote = float(t["quoteVolume"])
                 high = float(t["highPrice"])
                 low = float(t["lowPrice"])
-                open_p = float(t["openPrice"])
                 
                 is_long = pct >= 0
-                rng = max(1e-9, high - low)
                 
                 score_long = 0
                 score_short = 0
 
                 # 1. Trend (+2)
-                if pct >= 2.5: score_long += 2
-                elif pct >= 0.8: score_long += 1
+                if pct >= 1.5: score_long += 2
+                elif pct >= 0.5: score_long += 1
                 
-                if pct <= -2.5: score_short += 2
-                elif pct <= -0.8: score_short += 1
+                if pct <= -1.5: score_short += 2
+                elif pct <= -0.5: score_short += 1
 
-                # 2. Volume (+2)
-                if vol_quote > 25000000:
+                # 2. Volume Expansion (+2)
+                if vol_quote > 15000000:
                     score_long += 2
                     score_short += 2
-                elif vol_quote > 6000000:
+                elif vol_quote > 3000000:
                     score_long += 1
                     score_short += 1
 
-                # 3. CVD (+2)
+                # 3. CVD Delta Flow (+2)
                 cvd_delta = round(pct * 12 + (15 if is_long else -15), 1)
                 if cvd_delta > 0: score_long += 2
                 if cvd_delta < 0: score_short += 2
 
-                # 4. Sweep (+2)
-                sweep = abs(pct) > 2.0
+                # 4. Liquidity Sweeps (+2)
+                sweep = abs(pct) > 1.2
                 if sweep and is_long: score_long += 2
                 if sweep and not is_long: score_short += 2
 
-                # 5. OI & Funding (+2)
+                # 5. Market Activity (+2)
                 score_long += 2
                 score_short += 2
 
                 total_score = min(10, score_long if is_long else score_short)
-                rating = "STRONG" if total_score >= 9 else "VALID" if total_score >= 7 else "WEAK" if total_score >= 5 else "NO_TRADE"
-                direction = "LONG" if (is_long and total_score >= 7) else "SHORT" if (not is_long and total_score >= 7) else "NEUTRAL"
+                rating = "STRONG" if total_score >= 8 else "VALID" if total_score >= 6 else "WEAK" if total_score >= 4 else "NO_TRADE"
+                direction = "LONG" if (is_long and total_score >= 6) else "SHORT" if (not is_long and total_score >= 6) else "NEUTRAL"
 
                 atr_proxy = (high - low) * 0.15
-                stop_loss = round(p - (atr_proxy * 1.5), 5 if p < 0.1 else 4) if is_long else round(p + (atr_proxy * 1.5), 5 if p < 0.1 else 4)
-                tp1 = round(p * 1.012 if is_long else p * 0.988, 5 if p < 0.1 else 4)
+                stop_loss = round(p * (1.0 - self.sl_ratio) if is_long else p * (1.0 + self.sl_ratio), 5 if p < 0.1 else 4)
+                tp1 = round(p * (1.0 + self.tp1_ratio) if is_long else p * (1.0 - self.tp1_ratio), 5 if p < 0.1 else 4)
                 tp2 = round(p * 1.024 if is_long else p * 0.976, 5 if p < 0.1 else 4)
                 tp3 = round(p * 1.042 if is_long else p * 0.958, 5 if p < 0.1 else 4)
 
@@ -312,7 +255,7 @@ class AutonomousOrderFlowBot:
 
             with self.lock:
                 self.market_data = processed
-                self.top_setups = [s for s in processed if s["total_score"] >= 8][:25]
+                self.top_setups = [s for s in processed if s["total_score"] >= 6][:30]
                 self.bot_status["scanned_markets"] = len(processed)
                 self.bot_status["last_cycle_time"] = datetime.now().strftime("%H:%M:%S")
                 self.bot_status["top_signals"] = [
@@ -322,23 +265,21 @@ class AutonomousOrderFlowBot:
 
             self.total_cycles += 1
             if self.total_cycles % 4 == 0:
-                logger.info(f"⚡ [Autonomous Bot] Cycle #{self.total_cycles} evaluated {len(processed)} pairs (<3% weight).")
+                logger.info(f"⚡ [Auto-Trader Bot] Cycle #{self.total_cycles} evaluated {len(processed)} pairs (<3% weight).")
 
-            # Manage existing open positions (TP/SL check)
+            # 1. Manage existing positions for real-time TP/SL
             self.check_and_manage_open_positions()
 
-            # Execute new Grade A entries if capacity allows
+            # 2. Auto-open positions on any available viable setup!
             self.evaluate_auto_entries()
 
-        except urllib.error.HTTPError as he:
-            if he.code == 418 or he.code == 429:
-                self.cooldown_until = time.time() + 180 # 3 min backoff
-            else:
-                logger.error(f"HTTP Error: {he}")
         except Exception as e:
             logger.error(f"Market scan error: {e}")
 
     def evaluate_auto_entries(self):
+        """
+        Auto-Opens Live Position on ANY Viable Market Opportunity (Score >= 6/10)
+        """
         acc_payload = self.get_binance_account_payload()
         active_pos = acc_payload.get("activePositions", [])
         active_symbols = set([p["symbol"] for p in active_pos])
@@ -348,9 +289,9 @@ class AutonomousOrderFlowBot:
 
         avail_margin = float(acc_payload["account"]["availableBalance"])
         wallet_bal = float(acc_payload["account"]["walletBalance"])
-        target_margin = max(0.20, wallet_bal * self.margin_pct) # 7% margin
+        target_margin = max(0.20, wallet_bal * self.margin_pct) # 7% margin sizing
 
-        for setup in self.top_setups[:3]:
+        for setup in self.top_setups:
             sym = setup["symbol"]
             score = setup["total_score"]
             direction = setup["direction"]
@@ -362,6 +303,7 @@ class AutonomousOrderFlowBot:
             if avail_margin < target_margin:
                 break
 
+            # Sizing: Notional = target_margin * 50x
             notional = max(5.5, target_margin * self.default_leverage)
             raw_qty = notional / p
             
@@ -375,17 +317,23 @@ class AutonomousOrderFlowBot:
                 continue
 
             side = "BUY" if direction == "LONG" else "SELL"
-            logger.info(f"🎯 [BOT SIGNAL TRIGGERED] {sym} | Score: {score}/10 | {direction} | Sizing: {target_margin:.2f} USDT Margin")
+            logger.info(f"🎯 [AUTO-TRIGGERING CHANCE] {sym} | Score: {score}/10 | {direction} | Target Margin: ${target_margin:.2f} USDT")
             
+            # 1. Set symbol leverage to 50x
             self.set_symbol_leverage(sym, self.default_leverage)
-            res = self.execute_market_order(sym, side, qty, p)
+            
+            # 2. Execute live market order
+            res = self.execute_market_order(sym, side, qty)
             if res and (res.get("status") == "FILLED" or res.get("status") == "NEW"):
                 active_symbols.add(sym)
                 avail_margin -= target_margin
                 self.bot_status["recent_actions"].append(
-                    f"{datetime.now().strftime('%H:%M:%S')} - Opened {side} {sym} ({self.default_leverage}x, Margin: ${target_margin:.2f})"
+                    f"{datetime.now().strftime('%H:%M:%S')} - Auto-Opened {side} {sym} ({self.default_leverage}x, Margin: ${target_margin:.2f})"
                 )
                 time.sleep(1)
+
+            if len(active_symbols) >= self.max_positions:
+                break
 
     def get_binance_account_payload(self) -> dict:
         now = time.time()
@@ -464,7 +412,7 @@ class AutonomousOrderFlowBot:
         return self.cached_account_payload
 
     def run_bot_loop(self):
-        logger.info("🚀 [Autonomous OrderFlow Bot] Live Auto-Trading & TP/SL Manager Active.")
+        logger.info("🚀 [Autonomous OrderFlow Opportunity Bot] Live Auto-Trading & Exit Loop Active 24/7.")
         while self.is_running:
             self.fetch_bulk_market_data()
             time.sleep(15)
@@ -522,7 +470,7 @@ class FlowHTTPHandler(BaseHTTPRequestHandler):
 
 def start_server(port=8080):
     server = HTTPServer(("0.0.0.0", port), FlowHTTPHandler)
-    logger.info(f"⚡ Bot Execution API & TP/SL Manager listening on port {port}")
+    logger.info(f"⚡ Bot Auto-Trader & Exit Manager API listening on port {port}")
     server.serve_forever()
 
 if __name__ == "__main__":
