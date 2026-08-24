@@ -45,6 +45,19 @@ logger = logging.getLogger(__name__)
 class OrderFlowRegimeStrategy(IStrategy):
     INTERFACE_VERSION = 3
     can_short: bool = True
+    # --- 7% Dynamic Margin Sizing & 50x Leverage Rules ---
+    stake_amount_ratio: float = 0.07
+    max_open_trades: int = 14
+
+    def custom_stake_amount(self, pair: str, current_time: datetime, current_rate: float,
+                            proposed_stake: float, min_stake: Optional[float], max_stake: float,
+                            leverage: float, entry_tag: Optional[str], side: str,
+                            **kwargs) -> float:
+        """
+        Dynamically allocates exactly 7% of total wallet equity per position.
+        """
+        return max(5.0, proposed_stake * self.stake_amount_ratio)
+
 
     minimal_roi = {
         "0": 0.050,
