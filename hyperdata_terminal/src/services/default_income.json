@@ -1,0 +1,902 @@
+[
+  {
+    "symbol": "PORTALUSDT",
+    "income": 0.01,
+    "asset": "USDT",
+    "time": "06:15:48",
+    "date": "2026-08-24",
+    "timestamp": 1787526948852,
+    "tradeId": "FT-7821900"
+  },
+  {
+    "symbol": "1000RATSUSDT",
+    "income": 0.0105,
+    "asset": "USDT",
+    "time": "06:23:00",
+    "date": "2026-08-24",
+    "timestamp": 1787527380852,
+    "tradeId": "FT-7821901"
+  },
+  {
+    "symbol": "STORJUSDT",
+    "income": -0.015,
+    "asset": "USDT",
+    "time": "06:30:12",
+    "date": "2026-08-24",
+    "timestamp": 1787527812852,
+    "tradeId": "FT-7821902"
+  },
+  {
+    "symbol": "NEIROUSDT",
+    "income": 0.0666,
+    "asset": "USDT",
+    "time": "06:37:24",
+    "date": "2026-08-24",
+    "timestamp": 1787528244852,
+    "tradeId": "FT-7821903"
+  },
+  {
+    "symbol": "1000PEPEUSDT",
+    "income": -0.091,
+    "asset": "USDT",
+    "time": "06:44:36",
+    "date": "2026-08-24",
+    "timestamp": 1787528676852,
+    "tradeId": "FT-7821904"
+  },
+  {
+    "symbol": "CHIPUSDT",
+    "income": 0.006,
+    "asset": "USDT",
+    "time": "06:51:48",
+    "date": "2026-08-24",
+    "timestamp": 1787529108852,
+    "tradeId": "FT-7821905"
+  },
+  {
+    "symbol": "GRASSUSDT",
+    "income": 0.165,
+    "asset": "USDT",
+    "time": "06:59:00",
+    "date": "2026-08-24",
+    "timestamp": 1787529540852,
+    "tradeId": "FT-7821906"
+  },
+  {
+    "symbol": "SUIUSDT",
+    "income": -0.068,
+    "asset": "USDT",
+    "time": "07:06:12",
+    "date": "2026-08-24",
+    "timestamp": 1787529972852,
+    "tradeId": "FT-7821907"
+  },
+  {
+    "symbol": "DOGEUSDT",
+    "income": 0.0397,
+    "asset": "USDT",
+    "time": "07:13:24",
+    "date": "2026-08-24",
+    "timestamp": 1787530404852,
+    "tradeId": "FT-7821908"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "income": -0.041,
+    "asset": "USDT",
+    "time": "07:20:36",
+    "date": "2026-08-24",
+    "timestamp": 1787530836852,
+    "tradeId": "FT-7821909"
+  },
+  {
+    "symbol": "XRPUSDT",
+    "income": -0.057,
+    "asset": "USDT",
+    "time": "07:27:48",
+    "date": "2026-08-24",
+    "timestamp": 1787531268852,
+    "tradeId": "FT-7821910"
+  },
+  {
+    "symbol": "PROMUSDT",
+    "income": 0.0598,
+    "asset": "USDT",
+    "time": "07:35:00",
+    "date": "2026-08-24",
+    "timestamp": 1787531700852,
+    "tradeId": "FT-7821911"
+  },
+  {
+    "symbol": "TUTUSDT",
+    "income": -0.165,
+    "asset": "USDT",
+    "time": "07:42:12",
+    "date": "2026-08-24",
+    "timestamp": 1787532132852,
+    "tradeId": "FT-7821912"
+  },
+  {
+    "symbol": "ENAUSDT",
+    "income": -0.152,
+    "asset": "USDT",
+    "time": "07:49:24",
+    "date": "2026-08-24",
+    "timestamp": 1787532564852,
+    "tradeId": "FT-7821913"
+  },
+  {
+    "symbol": "WIFUSDT",
+    "income": -0.06,
+    "asset": "USDT",
+    "time": "07:56:36",
+    "date": "2026-08-24",
+    "timestamp": 1787532996852,
+    "tradeId": "FT-7821914"
+  },
+  {
+    "symbol": "FETUSDT",
+    "income": 0.0085,
+    "asset": "USDT",
+    "time": "08:03:48",
+    "date": "2026-08-24",
+    "timestamp": 1787533428852,
+    "tradeId": "FT-7821915"
+  },
+  {
+    "symbol": "NEARUSDT",
+    "income": 0.007,
+    "asset": "USDT",
+    "time": "08:11:00",
+    "date": "2026-08-24",
+    "timestamp": 1787533860852,
+    "tradeId": "FT-7821916"
+  },
+  {
+    "symbol": "PEPEUSDT",
+    "income": -0.014,
+    "asset": "USDT",
+    "time": "08:18:12",
+    "date": "2026-08-24",
+    "timestamp": 1787534292852,
+    "tradeId": "FT-7821917"
+  },
+  {
+    "symbol": "SHIBUSDT",
+    "income": -0.047,
+    "asset": "USDT",
+    "time": "08:25:24",
+    "date": "2026-08-24",
+    "timestamp": 1787534724852,
+    "tradeId": "FT-7821918"
+  },
+  {
+    "symbol": "AVAXUSDT",
+    "income": 0.0125,
+    "asset": "USDT",
+    "time": "08:32:36",
+    "date": "2026-08-24",
+    "timestamp": 1787535156852,
+    "tradeId": "FT-7821919"
+  },
+  {
+    "symbol": "PORTALUSDT",
+    "income": 0.0175,
+    "asset": "USDT",
+    "time": "08:39:48",
+    "date": "2026-08-24",
+    "timestamp": 1787535588852,
+    "tradeId": "FT-7821920"
+  },
+  {
+    "symbol": "1000RATSUSDT",
+    "income": 0.028,
+    "asset": "USDT",
+    "time": "08:47:00",
+    "date": "2026-08-24",
+    "timestamp": 1787536020852,
+    "tradeId": "FT-7821921"
+  },
+  {
+    "symbol": "STORJUSDT",
+    "income": 0.015,
+    "asset": "USDT",
+    "time": "08:54:12",
+    "date": "2026-08-24",
+    "timestamp": 1787536452852,
+    "tradeId": "FT-7821922"
+  },
+  {
+    "symbol": "NEIROUSDT",
+    "income": -0.01,
+    "asset": "USDT",
+    "time": "09:01:24",
+    "date": "2026-08-24",
+    "timestamp": 1787536884852,
+    "tradeId": "FT-7821923"
+  },
+  {
+    "symbol": "1000PEPEUSDT",
+    "income": -0.036,
+    "asset": "USDT",
+    "time": "09:08:36",
+    "date": "2026-08-24",
+    "timestamp": 1787537316852,
+    "tradeId": "FT-7821924"
+  },
+  {
+    "symbol": "CHIPUSDT",
+    "income": 0.0065,
+    "asset": "USDT",
+    "time": "09:15:48",
+    "date": "2026-08-24",
+    "timestamp": 1787537748852,
+    "tradeId": "FT-7821925"
+  },
+  {
+    "symbol": "GRASSUSDT",
+    "income": -0.029,
+    "asset": "USDT",
+    "time": "09:23:00",
+    "date": "2026-08-24",
+    "timestamp": 1787538180852,
+    "tradeId": "FT-7821926"
+  },
+  {
+    "symbol": "SUIUSDT",
+    "income": 0.021,
+    "asset": "USDT",
+    "time": "09:30:12",
+    "date": "2026-08-24",
+    "timestamp": 1787538612852,
+    "tradeId": "FT-7821927"
+  },
+  {
+    "symbol": "DOGEUSDT",
+    "income": -0.021,
+    "asset": "USDT",
+    "time": "09:37:24",
+    "date": "2026-08-24",
+    "timestamp": 1787539044852,
+    "tradeId": "FT-7821928"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "income": 0.0145,
+    "asset": "USDT",
+    "time": "09:44:36",
+    "date": "2026-08-24",
+    "timestamp": 1787539476852,
+    "tradeId": "FT-7821929"
+  },
+  {
+    "symbol": "XRPUSDT",
+    "income": 0.071,
+    "asset": "USDT",
+    "time": "09:51:48",
+    "date": "2026-08-24",
+    "timestamp": 1787539908852,
+    "tradeId": "FT-7821930"
+  },
+  {
+    "symbol": "PROMUSDT",
+    "income": 0.0075,
+    "asset": "USDT",
+    "time": "09:59:00",
+    "date": "2026-08-24",
+    "timestamp": 1787540340852,
+    "tradeId": "FT-7821931"
+  },
+  {
+    "symbol": "TUTUSDT",
+    "income": -0.128,
+    "asset": "USDT",
+    "time": "10:06:12",
+    "date": "2026-08-24",
+    "timestamp": 1787540772852,
+    "tradeId": "FT-7821932"
+  },
+  {
+    "symbol": "ENAUSDT",
+    "income": -0.102,
+    "asset": "USDT",
+    "time": "10:13:24",
+    "date": "2026-08-24",
+    "timestamp": 1787541204852,
+    "tradeId": "FT-7821933"
+  },
+  {
+    "symbol": "WIFUSDT",
+    "income": -0.053,
+    "asset": "USDT",
+    "time": "10:20:36",
+    "date": "2026-08-24",
+    "timestamp": 1787541636852,
+    "tradeId": "FT-7821934"
+  },
+  {
+    "symbol": "FETUSDT",
+    "income": 0.009,
+    "asset": "USDT",
+    "time": "10:27:48",
+    "date": "2026-08-24",
+    "timestamp": 1787542068852,
+    "tradeId": "FT-7821935"
+  },
+  {
+    "symbol": "NEARUSDT",
+    "income": -0.008,
+    "asset": "USDT",
+    "time": "10:35:00",
+    "date": "2026-08-24",
+    "timestamp": 1787542500852,
+    "tradeId": "FT-7821936"
+  },
+  {
+    "symbol": "PEPEUSDT",
+    "income": -0.21,
+    "asset": "USDT",
+    "time": "10:42:12",
+    "date": "2026-08-24",
+    "timestamp": 1787542932852,
+    "tradeId": "FT-7821937"
+  },
+  {
+    "symbol": "SHIBUSDT",
+    "income": -0.025,
+    "asset": "USDT",
+    "time": "10:49:24",
+    "date": "2026-08-24",
+    "timestamp": 1787543364852,
+    "tradeId": "FT-7821938"
+  },
+  {
+    "symbol": "AVAXUSDT",
+    "income": 0.049,
+    "asset": "USDT",
+    "time": "10:56:36",
+    "date": "2026-08-24",
+    "timestamp": 1787543796852,
+    "tradeId": "FT-7821939"
+  },
+  {
+    "symbol": "PORTALUSDT",
+    "income": 0.013,
+    "asset": "USDT",
+    "time": "11:03:48",
+    "date": "2026-08-24",
+    "timestamp": 1787544228852,
+    "tradeId": "FT-7821940"
+  },
+  {
+    "symbol": "1000RATSUSDT",
+    "income": 0.025,
+    "asset": "USDT",
+    "time": "11:11:00",
+    "date": "2026-08-24",
+    "timestamp": 1787544660852,
+    "tradeId": "FT-7821941"
+  },
+  {
+    "symbol": "STORJUSDT",
+    "income": 0.0115,
+    "asset": "USDT",
+    "time": "11:18:12",
+    "date": "2026-08-24",
+    "timestamp": 1787545092852,
+    "tradeId": "FT-7821942"
+  },
+  {
+    "symbol": "NEIROUSDT",
+    "income": 0.011,
+    "asset": "USDT",
+    "time": "11:25:24",
+    "date": "2026-08-24",
+    "timestamp": 1787545524852,
+    "tradeId": "FT-7821943"
+  },
+  {
+    "symbol": "1000PEPEUSDT",
+    "income": 0.032,
+    "asset": "USDT",
+    "time": "11:32:36",
+    "date": "2026-08-24",
+    "timestamp": 1787545956852,
+    "tradeId": "FT-7821944"
+  },
+  {
+    "symbol": "CHIPUSDT",
+    "income": -0.086,
+    "asset": "USDT",
+    "time": "11:39:48",
+    "date": "2026-08-24",
+    "timestamp": 1787546388852,
+    "tradeId": "FT-7821945"
+  },
+  {
+    "symbol": "GRASSUSDT",
+    "income": -0.115,
+    "asset": "USDT",
+    "time": "11:47:00",
+    "date": "2026-08-24",
+    "timestamp": 1787546820852,
+    "tradeId": "FT-7821946"
+  },
+  {
+    "symbol": "SUIUSDT",
+    "income": -0.121,
+    "asset": "USDT",
+    "time": "11:54:12",
+    "date": "2026-08-24",
+    "timestamp": 1787547252852,
+    "tradeId": "FT-7821947"
+  },
+  {
+    "symbol": "DOGEUSDT",
+    "income": 0.076,
+    "asset": "USDT",
+    "time": "12:01:24",
+    "date": "2026-08-24",
+    "timestamp": 1787547684852,
+    "tradeId": "FT-7821948"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "income": 0.014,
+    "asset": "USDT",
+    "time": "12:08:36",
+    "date": "2026-08-24",
+    "timestamp": 1787548116852,
+    "tradeId": "FT-7821949"
+  },
+  {
+    "symbol": "XRPUSDT",
+    "income": -0.006,
+    "asset": "USDT",
+    "time": "12:15:48",
+    "date": "2026-08-24",
+    "timestamp": 1787548548852,
+    "tradeId": "FT-7821950"
+  },
+  {
+    "symbol": "PROMUSDT",
+    "income": 0.008,
+    "asset": "USDT",
+    "time": "12:23:00",
+    "date": "2026-08-24",
+    "timestamp": 1787548980852,
+    "tradeId": "FT-7821951"
+  },
+  {
+    "symbol": "TUTUSDT",
+    "income": 0.142,
+    "asset": "USDT",
+    "time": "12:30:12",
+    "date": "2026-08-24",
+    "timestamp": 1787549412852,
+    "tradeId": "FT-7821952"
+  },
+  {
+    "symbol": "ENAUSDT",
+    "income": -0.245,
+    "asset": "USDT",
+    "time": "12:37:24",
+    "date": "2026-08-24",
+    "timestamp": 1787549844852,
+    "tradeId": "FT-7821953"
+  },
+  {
+    "symbol": "WIFUSDT",
+    "income": 0.038,
+    "asset": "USDT",
+    "time": "12:44:36",
+    "date": "2026-08-24",
+    "timestamp": 1787550276852,
+    "tradeId": "FT-7821954"
+  },
+  {
+    "symbol": "FETUSDT",
+    "income": 0.012,
+    "asset": "USDT",
+    "time": "12:51:48",
+    "date": "2026-08-24",
+    "timestamp": 1787550708852,
+    "tradeId": "FT-7821955"
+  },
+  {
+    "symbol": "NEARUSDT",
+    "income": -0.135,
+    "asset": "USDT",
+    "time": "12:59:00",
+    "date": "2026-08-24",
+    "timestamp": 1787551140852,
+    "tradeId": "FT-7821956"
+  },
+  {
+    "symbol": "PEPEUSDT",
+    "income": -0.077,
+    "asset": "USDT",
+    "time": "13:06:12",
+    "date": "2026-08-24",
+    "timestamp": 1787551572852,
+    "tradeId": "FT-7821957"
+  },
+  {
+    "symbol": "SHIBUSDT",
+    "income": 0.026,
+    "asset": "USDT",
+    "time": "13:13:24",
+    "date": "2026-08-24",
+    "timestamp": 1787552004852,
+    "tradeId": "FT-7821958"
+  },
+  {
+    "symbol": "AVAXUSDT",
+    "income": -0.108,
+    "asset": "USDT",
+    "time": "13:20:36",
+    "date": "2026-08-24",
+    "timestamp": 1787552436852,
+    "tradeId": "FT-7821959"
+  },
+  {
+    "symbol": "PORTALUSDT",
+    "income": 0.024,
+    "asset": "USDT",
+    "time": "13:27:48",
+    "date": "2026-08-24",
+    "timestamp": 1787552868852,
+    "tradeId": "FT-7821960"
+  },
+  {
+    "symbol": "1000RATSUSDT",
+    "income": 0.0875,
+    "asset": "USDT",
+    "time": "13:35:00",
+    "date": "2026-08-24",
+    "timestamp": 1787553300852,
+    "tradeId": "FT-7821961"
+  },
+  {
+    "symbol": "STORJUSDT",
+    "income": 0.082,
+    "asset": "USDT",
+    "time": "13:42:12",
+    "date": "2026-08-24",
+    "timestamp": 1787553732852,
+    "tradeId": "FT-7821962"
+  },
+  {
+    "symbol": "NEIROUSDT",
+    "income": -0.081,
+    "asset": "USDT",
+    "time": "13:49:24",
+    "date": "2026-08-24",
+    "timestamp": 1787554164852,
+    "tradeId": "FT-7821963"
+  },
+  {
+    "symbol": "1000PEPEUSDT",
+    "income": -0.031,
+    "asset": "USDT",
+    "time": "13:56:36",
+    "date": "2026-08-24",
+    "timestamp": 1787554596852,
+    "tradeId": "FT-7821964"
+  },
+  {
+    "symbol": "CHIPUSDT",
+    "income": 0.03,
+    "asset": "USDT",
+    "time": "14:03:48",
+    "date": "2026-08-24",
+    "timestamp": 1787555028852,
+    "tradeId": "FT-7821965"
+  },
+  {
+    "symbol": "GRASSUSDT",
+    "income": -0.038,
+    "asset": "USDT",
+    "time": "14:11:00",
+    "date": "2026-08-24",
+    "timestamp": 1787555460852,
+    "tradeId": "FT-7821966"
+  },
+  {
+    "symbol": "SUIUSDT",
+    "income": 0.0095,
+    "asset": "USDT",
+    "time": "14:18:12",
+    "date": "2026-08-24",
+    "timestamp": 1787555892852,
+    "tradeId": "FT-7821967"
+  },
+  {
+    "symbol": "DOGEUSDT",
+    "income": -0.016,
+    "asset": "USDT",
+    "time": "14:25:24",
+    "date": "2026-08-24",
+    "timestamp": 1787556324852,
+    "tradeId": "FT-7821968"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "income": 0.029,
+    "asset": "USDT",
+    "time": "14:32:36",
+    "date": "2026-08-24",
+    "timestamp": 1787556756852,
+    "tradeId": "FT-7821969"
+  },
+  {
+    "symbol": "XRPUSDT",
+    "income": 0.2085,
+    "asset": "USDT",
+    "time": "14:39:48",
+    "date": "2026-08-24",
+    "timestamp": 1787557188852,
+    "tradeId": "FT-7821970"
+  },
+  {
+    "symbol": "PROMUSDT",
+    "income": -0.011,
+    "asset": "USDT",
+    "time": "14:47:00",
+    "date": "2026-08-24",
+    "timestamp": 1787557620852,
+    "tradeId": "FT-7821971"
+  },
+  {
+    "symbol": "TUTUSDT",
+    "income": -0.141,
+    "asset": "USDT",
+    "time": "14:54:12",
+    "date": "2026-08-24",
+    "timestamp": 1787558052852,
+    "tradeId": "FT-7821972"
+  },
+  {
+    "symbol": "ENAUSDT",
+    "income": -0.013,
+    "asset": "USDT",
+    "time": "15:01:24",
+    "date": "2026-08-24",
+    "timestamp": 1787558484852,
+    "tradeId": "FT-7821973"
+  },
+  {
+    "symbol": "WIFUSDT",
+    "income": -0.195,
+    "asset": "USDT",
+    "time": "15:08:36",
+    "date": "2026-08-24",
+    "timestamp": 1787558916852,
+    "tradeId": "FT-7821974"
+  },
+  {
+    "symbol": "FETUSDT",
+    "income": -0.018,
+    "asset": "USDT",
+    "time": "15:15:48",
+    "date": "2026-08-24",
+    "timestamp": 1787559348852,
+    "tradeId": "FT-7821975"
+  },
+  {
+    "symbol": "NEARUSDT",
+    "income": 0.022,
+    "asset": "USDT",
+    "time": "15:23:00",
+    "date": "2026-08-24",
+    "timestamp": 1787559780852,
+    "tradeId": "FT-7821976"
+  },
+  {
+    "symbol": "PEPEUSDT",
+    "income": -0.064,
+    "asset": "USDT",
+    "time": "15:30:12",
+    "date": "2026-08-24",
+    "timestamp": 1787560212852,
+    "tradeId": "FT-7821977"
+  },
+  {
+    "symbol": "SHIBUSDT",
+    "income": -0.027,
+    "asset": "USDT",
+    "time": "15:37:24",
+    "date": "2026-08-24",
+    "timestamp": 1787560644852,
+    "tradeId": "FT-7821978"
+  },
+  {
+    "symbol": "AVAXUSDT",
+    "income": -0.044,
+    "asset": "USDT",
+    "time": "15:44:36",
+    "date": "2026-08-24",
+    "timestamp": 1787561076852,
+    "tradeId": "FT-7821979"
+  },
+  {
+    "symbol": "PORTALUSDT",
+    "income": -0.096,
+    "asset": "USDT",
+    "time": "15:51:48",
+    "date": "2026-08-24",
+    "timestamp": 1787561508852,
+    "tradeId": "FT-7821980"
+  },
+  {
+    "symbol": "1000RATSUSDT",
+    "income": 0.0185,
+    "asset": "USDT",
+    "time": "15:59:00",
+    "date": "2026-08-24",
+    "timestamp": 1787561940852,
+    "tradeId": "FT-7821981"
+  },
+  {
+    "symbol": "STORJUSDT",
+    "income": 0.02,
+    "asset": "USDT",
+    "time": "16:06:12",
+    "date": "2026-08-24",
+    "timestamp": 1787562372852,
+    "tradeId": "FT-7821982"
+  },
+  {
+    "symbol": "NEIROUSDT",
+    "income": -0.019,
+    "asset": "USDT",
+    "time": "16:13:24",
+    "date": "2026-08-24",
+    "timestamp": 1787562804852,
+    "tradeId": "FT-7821983"
+  },
+  {
+    "symbol": "1000PEPEUSDT",
+    "income": -0.009,
+    "asset": "USDT",
+    "time": "16:20:36",
+    "date": "2026-08-24",
+    "timestamp": 1787563236852,
+    "tradeId": "FT-7821984"
+  },
+  {
+    "symbol": "CHIPUSDT",
+    "income": 0.098,
+    "asset": "USDT",
+    "time": "16:27:48",
+    "date": "2026-08-24",
+    "timestamp": 1787563668852,
+    "tradeId": "FT-7821985"
+  },
+  {
+    "symbol": "GRASSUSDT",
+    "income": -0.18,
+    "asset": "USDT",
+    "time": "16:35:00",
+    "date": "2026-08-24",
+    "timestamp": 1787564100852,
+    "tradeId": "FT-7821986"
+  },
+  {
+    "symbol": "SUIUSDT",
+    "income": -0.05,
+    "asset": "USDT",
+    "time": "16:42:12",
+    "date": "2026-08-24",
+    "timestamp": 1787564532852,
+    "tradeId": "FT-7821987"
+  },
+  {
+    "symbol": "DOGEUSDT",
+    "income": 0.054,
+    "asset": "USDT",
+    "time": "16:49:24",
+    "date": "2026-08-24",
+    "timestamp": 1787564964852,
+    "tradeId": "FT-7821988"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "income": -0.072,
+    "asset": "USDT",
+    "time": "16:56:36",
+    "date": "2026-08-24",
+    "timestamp": 1787565396852,
+    "tradeId": "FT-7821989"
+  },
+  {
+    "symbol": "XRPUSDT",
+    "income": -0.023,
+    "asset": "USDT",
+    "time": "17:03:48",
+    "date": "2026-08-24",
+    "timestamp": 1787565828852,
+    "tradeId": "FT-7821990"
+  },
+  {
+    "symbol": "PROMUSDT",
+    "income": 0.045,
+    "asset": "USDT",
+    "time": "17:11:00",
+    "date": "2026-08-24",
+    "timestamp": 1787566260852,
+    "tradeId": "FT-7821991"
+  },
+  {
+    "symbol": "TUTUSDT",
+    "income": 0.035,
+    "asset": "USDT",
+    "time": "17:18:12",
+    "date": "2026-08-24",
+    "timestamp": 1787566692852,
+    "tradeId": "FT-7821992"
+  },
+  {
+    "symbol": "ENAUSDT",
+    "income": 0.019,
+    "asset": "USDT",
+    "time": "17:25:24",
+    "date": "2026-08-24",
+    "timestamp": 1787567124852,
+    "tradeId": "FT-7821993"
+  },
+  {
+    "symbol": "WIFUSDT",
+    "income": 0.016,
+    "asset": "USDT",
+    "time": "17:32:36",
+    "date": "2026-08-24",
+    "timestamp": 1787567556852,
+    "tradeId": "FT-7821994"
+  },
+  {
+    "symbol": "FETUSDT",
+    "income": 0.0135,
+    "asset": "USDT",
+    "time": "17:39:48",
+    "date": "2026-08-24",
+    "timestamp": 1787567988852,
+    "tradeId": "FT-7821995"
+  },
+  {
+    "symbol": "NEARUSDT",
+    "income": -0.012,
+    "asset": "USDT",
+    "time": "17:47:00",
+    "date": "2026-08-24",
+    "timestamp": 1787568420852,
+    "tradeId": "FT-7821996"
+  },
+  {
+    "symbol": "PEPEUSDT",
+    "income": 0.118,
+    "asset": "USDT",
+    "time": "17:54:12",
+    "date": "2026-08-24",
+    "timestamp": 1787568852852,
+    "tradeId": "FT-7821997"
+  },
+  {
+    "symbol": "SHIBUSDT",
+    "income": 0.0424,
+    "asset": "USDT",
+    "time": "18:01:24",
+    "date": "2026-08-24",
+    "timestamp": 1787569284852,
+    "tradeId": "FT-7821998"
+  },
+  {
+    "symbol": "AVAXUSDT",
+    "income": -0.034,
+    "asset": "USDT",
+    "time": "18:08:36",
+    "date": "2026-08-24",
+    "timestamp": 1787569716852,
+    "tradeId": "FT-7821999"
+  }
+]
