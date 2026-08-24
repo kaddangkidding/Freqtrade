@@ -1,11 +1,10 @@
 {
-  "framework": "vite",
   "buildCommand": "cd hyperdata_terminal && npm install && npm run build",
   "outputDirectory": "hyperdata_terminal/dist",
-  "routes": [
+  "rewrites": [
     {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
