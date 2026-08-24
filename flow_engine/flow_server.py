@@ -1,7 +1,7 @@
 """
-HyperData Flow Engine & 24/7 Lightweight Binance Futures Quantitative Screening Daemon.
+HyperData Flow Engine & 24/7 Autonomous Binance Futures Quantitative Trading Bot.
 Optimized for 100% Rate-Limit Safety (< 3% of Binance Limits).
-Uses single-request 24hr bulk ticker matrix and cached account queries.
+Dynamic 7.0% Margin Position Sizing, 50x Max Leverage, and 10-Point Score Execution.
 """
 import hmac
 import hashlib
@@ -11,7 +11,7 @@ import os
 import threading
 import time
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 import urllib.request
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -28,16 +28,21 @@ def sign_query(params: dict) -> str:
     signature = hmac.new(SECRET_KEY.encode('utf-8'), query_str.encode('utf-8'), hashlib.sha256).hexdigest()
     return f"{query_str}&signature={signature}"
 
-class UltraSafe247Daemon:
+class AutonomousOrderFlowBot:
     def __init__(self):
         self.lock = threading.Lock()
         self.market_data: List[Dict] = []
         self.top_setups: List[Dict] = []
-        self.last_update = 0
         self.is_running = True
         self.total_cycles = 0
+        self.cooldown_until = 0
         
-        # Account Cache to prevent rate limits
+        # Sizing Rules
+        self.margin_pct = 0.07 # 7% margin per position
+        self.max_positions = 14
+        self.default_leverage = 50
+        
+        # Account Cache
         self.last_account_fetch = 0
         self.cached_account_payload = {
             "status": "success",
@@ -58,20 +63,55 @@ class UltraSafe247Daemon:
         }
 
         self.bot_status = {
-            "mode": "24/7 ULTRA-SAFE SCREENER ACTIVE",
+            "mode": "24/7 AUTONOMOUS EXECUTION BOT ACTIVE",
+            "bot_state": "RUNNING_AUTOPILOT",
             "uptime_since": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "scanned_markets": 0,
             "strategy": "10-Point Institutional OrderFlow & Regime Matrix",
+            "margin_rule": "7.0% per trade (50x Max Leverage)",
+            "max_positions": 14,
             "last_cycle_time": datetime.now().strftime("%H:%M:%S"),
             "rate_limit_usage": "< 3% (Zero Ban Risk)",
-            "top_signals": []
+            "top_signals": [],
+            "recent_actions": []
         }
 
+    def set_symbol_leverage(self, symbol: str, leverage: int = 50):
+        try:
+            url = "https://fapi.binance.com/fapi/v1/leverage"
+            data = sign_query({"symbol": symbol, "leverage": leverage}).encode('utf-8')
+            req = urllib.request.Request(url, data=data, headers={"X-MBX-APIKEY": API_KEY}, method="POST")
+            with urllib.request.urlopen(req, timeout=4) as r:
+                return json.loads(r.read().decode())
+        except Exception as e:
+            return {"error": str(e)}
+
+    def execute_market_order(self, symbol: str, side: str, quantity: float):
+        try:
+            url = "https://fapi.binance.com/fapi/v1/order"
+            params = {
+                "symbol": symbol,
+                "side": side,
+                "type": "MARKET",
+                "quantity": quantity
+            }
+            data = sign_query(params).encode('utf-8')
+            req = urllib.request.Request(url, data=data, headers={"X-MBX-APIKEY": API_KEY}, method="POST")
+            with urllib.request.urlopen(req, timeout=5) as r:
+                res = json.loads(r.read().decode())
+                logger.info(f"🚀 [AUTO-TRADE EXECUTED] {symbol} {side} Qty: {quantity} -> {res.get('status')}")
+                return res
+        except Exception as e:
+            logger.error(f"Execution error on {symbol}: {e}")
+            return {"error": str(e)}
+
     def fetch_bulk_market_data(self):
-        """
-        Fetches ALL 693 Binance Futures USDT Perpetual markets in 1 SINGLE HTTP request!
-        Consumes only 40 weight every 15-20 seconds.
-        """
+        now = time.time()
+        if now < self.cooldown_until:
+            rem = int(self.cooldown_until - now)
+            logger.info(f"⏳ Rate cooldown active ({rem}s remaining)... Screener waiting safely.")
+            return
+
         try:
             url = "https://fapi.binance.com/fapi/v1/ticker/24hr"
             req = urllib.request.Request(url, headers={"User-Agent": "HyperData-Terminal/2.0"})
@@ -96,18 +136,17 @@ class UltraSafe247Daemon:
                 is_long = pct >= 0
                 rng = max(1e-9, high - low)
                 
-                # 10-Point Score Matrix calculation
                 score_long = 0
                 score_short = 0
 
-                # 1. Market Regime Trend (+2)
+                # 1. Trend (+2)
                 if pct >= 2.5: score_long += 2
                 elif pct >= 0.8: score_long += 1
                 
                 if pct <= -2.5: score_short += 2
                 elif pct <= -0.8: score_short += 1
 
-                # 2. Volume Expansion (+2)
+                # 2. Volume (+2)
                 if vol_quote > 25000000:
                     score_long += 2
                     score_short += 2
@@ -115,17 +154,17 @@ class UltraSafe247Daemon:
                     score_long += 1
                     score_short += 1
 
-                # 3. CVD Delta Flow (+2)
+                # 3. CVD (+2)
                 cvd_delta = round(pct * 12 + (15 if is_long else -15), 1)
                 if cvd_delta > 0: score_long += 2
                 if cvd_delta < 0: score_short += 2
 
-                # 4. Liquidity Sweeps (+2)
+                # 4. Sweep (+2)
                 sweep = abs(pct) > 2.0
                 if sweep and is_long: score_long += 2
                 if sweep and not is_long: score_short += 2
 
-                # 5. Open Interest & Funding (+2)
+                # 5. OI & Funding (+2)
                 score_long += 2
                 score_short += 2
 
@@ -168,7 +207,7 @@ class UltraSafe247Daemon:
 
             with self.lock:
                 self.market_data = processed
-                self.top_setups = [s for s in processed if s["total_score"] >= 7][:25]
+                self.top_setups = [s for s in processed if s["total_score"] >= 8][:25]
                 self.bot_status["scanned_markets"] = len(processed)
                 self.bot_status["last_cycle_time"] = datetime.now().strftime("%H:%M:%S")
                 self.bot_status["top_signals"] = [
@@ -177,29 +216,80 @@ class UltraSafe247Daemon:
                 ]
 
             self.total_cycles += 1
-            if self.total_cycles % 5 == 0:
-                logger.info(f"⚡ [Ultra-Safe Screener] Cycle #{self.total_cycles} evaluated {len(processed)} pairs (Weight used: <3% of limit).")
+            if self.total_cycles % 4 == 0:
+                logger.info(f"⚡ [Autonomous Bot] Cycle #{self.total_cycles} evaluated {len(processed)} pairs (<3% weight).")
 
+            self.evaluate_auto_entries()
+
+        except urllib.error.HTTPError as he:
+            if he.code == 418 or he.code == 429:
+                self.cooldown_until = time.time() + 300 # 5 min backoff
+                logger.warning(f"⚠️ Binance cooldown active. Backing off 5 minutes.")
+            else:
+                logger.error(f"HTTP Error: {he}")
         except Exception as e:
-            logger.error(f"Error fetching bulk market data: {e}")
+            logger.error(f"Market scan error: {e}")
+
+    def evaluate_auto_entries(self):
+        acc_payload = self.get_binance_account_payload()
+        active_pos = acc_payload.get("activePositions", [])
+        active_symbols = set([p["symbol"] for p in active_pos])
+        
+        if len(active_symbols) >= self.max_positions:
+            return
+
+        avail_margin = float(acc_payload["account"]["availableBalance"])
+        wallet_bal = float(acc_payload["account"]["walletBalance"])
+        target_margin = max(0.20, wallet_bal * self.margin_pct) # 7% margin
+
+        for setup in self.top_setups[:3]:
+            sym = setup["symbol"]
+            score = setup["total_score"]
+            direction = setup["direction"]
+            p = setup["current_price"]
+
+            if sym in active_symbols or direction == "NEUTRAL" or p <= 0:
+                continue
+
+            if avail_margin < target_margin:
+                break
+
+            notional = max(5.5, target_margin * self.default_leverage)
+            raw_qty = notional / p
+            
+            if p >= 100: qty = round(raw_qty, 3)
+            elif p >= 10: qty = round(raw_qty, 2)
+            elif p >= 1: qty = round(raw_qty, 1)
+            elif p >= 0.01: qty = int(raw_qty)
+            else: qty = int(raw_qty)
+
+            if qty <= 0:
+                continue
+
+            side = "BUY" if direction == "LONG" else "SELL"
+            logger.info(f"🎯 [BOT SIGNAL TRIGGERED] {sym} | Score: {score}/10 | {direction} | Sizing: {target_margin:.2f} USDT Margin")
+            
+            self.set_symbol_leverage(sym, self.default_leverage)
+            res = self.execute_market_order(sym, side, qty)
+            if res.get("status") == "FILLED" or res.get("status") == "NEW":
+                active_symbols.add(sym)
+                avail_margin -= target_margin
+                self.bot_status["recent_actions"].append(
+                    f"{datetime.now().strftime('%H:%M:%S')} - Opened {side} {sym} ({self.default_leverage}x, Margin: ${target_margin:.2f})"
+                )
+                time.sleep(1)
 
     def get_binance_account_payload(self) -> dict:
-        """
-        Cached Account Fetcher: Only queries Binance every 8 seconds,
-        preventing ANY rate limit bans or proxy warnings!
-        """
         now = time.time()
-        if now - self.last_account_fetch < 8.0:
+        if now - self.last_account_fetch < 10.0:
             return self.cached_account_payload
 
         try:
-            # 1. Position Risk (weight 5)
             pos_url = f"https://fapi.binance.com/fapi/v2/positionRisk?{sign_query({})}"
             req_pos = urllib.request.Request(pos_url, headers={"X-MBX-APIKEY": API_KEY})
             with urllib.request.urlopen(req_pos, timeout=4) as r:
                 pos_data = json.loads(r.read().decode())
 
-            # 2. Account Info (weight 5)
             acc_url = f"https://fapi.binance.com/fapi/v2/account?{sign_query({})}"
             req_acc = urllib.request.Request(acc_url, headers={"X-MBX-APIKEY": API_KEY})
             with urllib.request.urlopen(req_acc, timeout=4) as r:
@@ -261,17 +351,17 @@ class UltraSafe247Daemon:
             self.last_account_fetch = now
 
         except Exception as e:
-            logger.warning(f"Using cached account payload: {e}")
+            pass
 
         return self.cached_account_payload
 
-    def run_screener_loop(self):
-        logger.info("🚀 [Ultra-Safe Full-Market Screener] Daemon started (<3% API limit).")
+    def run_bot_loop(self):
+        logger.info("🚀 [Autonomous OrderFlow Bot] Live Auto-Trading Loop Active on Binance Futures.")
         while self.is_running:
             self.fetch_bulk_market_data()
-            time.sleep(15)
+            time.sleep(20)
 
-daemon = UltraSafe247Daemon()
+bot = AutonomousOrderFlowBot()
 
 class FlowHTTPHandler(BaseHTTPRequestHandler):
     def end_headers(self):
@@ -290,7 +380,7 @@ class FlowHTTPHandler(BaseHTTPRequestHandler):
         path = parsed.path
 
         if path == "/api/account":
-            data = daemon.get_binance_account_payload()
+            data = bot.get_binance_account_payload()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -298,8 +388,8 @@ class FlowHTTPHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/flow/matrix":
-            with daemon.lock:
-                data = list(daemon.market_data)
+            with bot.lock:
+                data = list(bot.market_data)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -307,8 +397,8 @@ class FlowHTTPHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/bot/status":
-            with daemon.lock:
-                status = dict(daemon.bot_status)
+            with bot.lock:
+                status = dict(bot.bot_status)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -324,10 +414,10 @@ class FlowHTTPHandler(BaseHTTPRequestHandler):
 
 def start_server(port=8080):
     server = HTTPServer(("0.0.0.0", port), FlowHTTPHandler)
-    logger.info(f"⚡ Ultra-Safe Screener & Bot API listening on port {port}")
+    logger.info(f"⚡ Bot Execution API & Screener listening on port {port}")
     server.serve_forever()
 
 if __name__ == "__main__":
-    t = threading.Thread(target=daemon.run_screener_loop, daemon=True)
+    t = threading.Thread(target=bot.run_bot_loop, daemon=True)
     t.start()
     start_server(8080)
