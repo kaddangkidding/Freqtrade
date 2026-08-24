@@ -4,8 +4,6 @@ import defaultRecords from './default_income.json';
 const API_KEY = 'SijchDXpN3dpJA5lYiCBQOgMC2ijnNgcR0UdVgncZYNeHP7RdBgMaj719I8y5WnY';
 const SECRET_KEY = 'zMQrvKFOV1CDGuGhx0kevzxhuCFgP0aDJ53W396C1M5BfIaoUEXYGGIziYp9qQZw';
 
-let lastIncomeFetchTime = 0;
-
 // Fast Browser-Native Web Crypto HMAC-SHA256 Signer
 async function signClientQuery(queryString: string): Promise<string> {
   try {
@@ -34,15 +32,15 @@ async function signClientQuery(queryString: string): Promise<string> {
 export const DEFAULT_INCOME_RECORDS: IncomeRecord[] = defaultRecords as IncomeRecord[];
 
 export const DEFAULT_ACCOUNT: AccountPortfolio = {
-  totalEquity: 5.71,
-  walletBalance: 5.42,
-  availableBalance: 2.53,
-  marginUsed: 2.89,
-  unrealizedPnl: 0.29,
-  netRealizedPnl: -0.94,
-  winRate: 51.0,
-  winTrades: 51,
-  loseTrades: 49,
+  totalEquity: 7.15,
+  walletBalance: 6.88,
+  availableBalance: 4.88,
+  marginUsed: 2.00,
+  unrealizedPnl: 0.27,
+  netRealizedPnl: 1.73,
+  winRate: 55.0,
+  winTrades: 55,
+  loseTrades: 45,
   totalTrades: 100,
 };
 
@@ -114,23 +112,6 @@ export const DEFAULT_POSITIONS: ActivePosition[] = [
     tp2: 0.04724,
     tp3: 0.04807,
     stopLoss: 0.04544,
-  },
-  {
-    symbol: 'UAIUSDT',
-    direction: 'LONG',
-    size: 138.0,
-    notional: 48.12,
-    margin: 0.96,
-    leverage: 50,
-    entryPrice: 0.34835,
-    markPrice: 0.34870,
-    unrealizedPnl: 0.0483,
-    unrealizedPnlPct: 5.0,
-    liquidationPrice: 0.3410,
-    tp1: 0.3525,
-    tp2: 0.3567,
-    tp3: 0.3630,
-    stopLoss: 0.3431,
   }
 ];
 
@@ -143,42 +124,36 @@ export async function fetchAccountData(forceIncome: boolean = false): Promise<{
 }> {
   const timestamp = Date.now();
 
-  // 1. PRIMARY: Direct Client-Side Signed Binance Query
+  // 1. PRIMARY: Direct Client-Side Signed Binance Query (Real-Time Trade History Continuous Sync)
   try {
     const query = `recvWindow=60000&timestamp=${timestamp}`;
     const signature = await signClientQuery(query);
 
     if (signature) {
       const headers = { 'X-MBX-APIKEY': API_KEY };
-      const shouldFetchIncome = forceIncome || (Date.now() - lastIncomeFetchTime > 30000);
       
       const promises: Promise<any>[] = [
         fetch(`https://fapi.binance.com/fapi/v2/account?${query}&signature=${signature}`, {
           headers,
           cache: 'no-store',
-          signal: AbortSignal.timeout(2500),
+          signal: AbortSignal.timeout(3000),
         }),
         fetch(`https://fapi.binance.com/fapi/v2/positionRisk?${query}&signature=${signature}`, {
           headers,
           cache: 'no-store',
-          signal: AbortSignal.timeout(2500),
+          signal: AbortSignal.timeout(3000),
+        }),
+        fetch(`https://fapi.binance.com/fapi/v1/income?incomeType=REALIZED_PNL&limit=100&${query}&signature=${signature}`, {
+          headers,
+          cache: 'no-store',
+          signal: AbortSignal.timeout(3000),
         })
       ];
-
-      if (shouldFetchIncome) {
-        promises.push(
-          fetch(`https://fapi.binance.com/fapi/v1/income?incomeType=REALIZED_PNL&limit=100&${query}&signature=${signature}`, {
-            headers,
-            cache: 'no-store',
-            signal: AbortSignal.timeout(2500),
-          })
-        );
-      }
 
       const results = await Promise.all(promises);
       const accRes = results[0];
       const posRes = results[1];
-      const incRes = results.length > 2 ? results[2] : null;
+      const incRes = results[2];
 
       if (accRes.ok && posRes.ok) {
         const accData = await accRes.json();
@@ -187,22 +162,23 @@ export async function fetchAccountData(forceIncome: boolean = false): Promise<{
         if (incRes && incRes.ok) {
           const incData = await incRes.json();
           if (Array.isArray(incData) && incData.length > 0) {
-            lastIncomeFetchTime = Date.now();
-            cachedIncomeRecords = incData.map((i: any) => ({
-              symbol: i.symbol,
-              income: parseFloat(i.income),
-              asset: i.asset,
-              time: new Date(i.time).toLocaleTimeString(),
-              date: new Date(i.time).toISOString().split('T')[0],
-              timestamp: i.time,
-              tradeId: i.tradeId,
-            }));
+            cachedIncomeRecords = incData
+              .map((i: any) => ({
+                symbol: i.symbol,
+                income: parseFloat(i.income),
+                asset: i.asset,
+                time: new Date(i.time).toLocaleTimeString(),
+                date: new Date(i.time).toISOString().split('T')[0],
+                timestamp: i.time,
+                tradeId: String(i.tradeId || i.tranId || ''),
+              }))
+              .sort((a, b) => b.timestamp - a.timestamp);
           }
         }
 
-        const walletBal = parseFloat(accData.totalWalletBalance || '5.42');
+        const walletBal = parseFloat(accData.totalWalletBalance || '6.88');
         const unrealPnl = parseFloat(accData.totalUnrealizedProfit || '0');
-        const availBal = parseFloat(accData.availableBalance || '5.42');
+        const availBal = parseFloat(accData.availableBalance || '4.88');
         const marginUsed = Math.max(0, walletBal - availBal);
 
         const activePositions: ActivePosition[] = Array.isArray(posData)
@@ -241,7 +217,7 @@ export async function fetchAccountData(forceIncome: boolean = false): Promise<{
         const netPnl = cachedIncomeRecords.reduce((sum, r) => sum + r.income, 0);
         const wins = cachedIncomeRecords.filter((r) => r.income > 0).length;
         const losses = cachedIncomeRecords.filter((r) => r.income < 0).length;
-        const winRate = (wins + losses) > 0 ? (wins / (wins + losses)) * 100 : 51.0;
+        const winRate = (wins + losses) > 0 ? (wins / (wins + losses)) * 100 : 55.0;
 
         return {
           account: {
@@ -262,6 +238,27 @@ export async function fetchAccountData(forceIncome: boolean = false): Promise<{
       }
     }
   } catch (clientErr) {}
+
+  // 2. FALLBACK TIER 1: Local Daemon Endpoint
+  try {
+    const res = await fetch(`http://localhost:8080/api/account?t=${timestamp}`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(1500),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.account) {
+        if (Array.isArray(data.incomeRecords) && data.incomeRecords.length > 0) {
+          cachedIncomeRecords = data.incomeRecords;
+        }
+        return {
+          account: data.account,
+          activePositions: Array.isArray(data.activePositions) ? data.activePositions : [],
+          incomeRecords: cachedIncomeRecords,
+        };
+      }
+    }
+  } catch (e) {}
 
   return {
     account: DEFAULT_ACCOUNT,
@@ -298,16 +295,16 @@ export async function fetchAllMarketCoins(force: boolean = false): Promise<FlowM
           let scoreLong = 0;
           let scoreShort = 0;
 
-          if (pct >= 2.0) scoreLong += 2;
+          if (pct >= 1.5) scoreLong += 2;
           else if (pct >= 0.5) scoreLong += 1;
 
-          if (pct <= -2.0) scoreShort += 2;
+          if (pct <= -1.5) scoreShort += 2;
           else if (pct <= -0.5) scoreShort += 1;
 
-          if (volQuote > 20000000) {
+          if (volQuote > 15000000) {
             scoreLong += 2;
             scoreShort += 2;
-          } else if (volQuote > 5000000) {
+          } else if (volQuote > 3000000) {
             scoreLong += 1;
             scoreShort += 1;
           }
@@ -316,7 +313,7 @@ export async function fetchAllMarketCoins(force: boolean = false): Promise<FlowM
           if (cvdDelta > 0) scoreLong += 2;
           if (cvdDelta < 0) scoreShort += 2;
 
-          const sweep = Math.abs(pct) > 1.5;
+          const sweep = Math.abs(pct) > 1.2;
           if (sweep && isLong) scoreLong += 2;
           if (sweep && !isLong) scoreShort += 2;
 
@@ -330,7 +327,7 @@ export async function fetchAllMarketCoins(force: boolean = false): Promise<FlowM
 
           const totalScore = isLong ? Math.min(10, scoreLong) : Math.min(10, scoreShort);
           const rating: 'STRONG' | 'VALID' | 'WEAK' | 'NO_TRADE' =
-            totalScore >= 9 ? 'STRONG' : totalScore >= 7 ? 'VALID' : totalScore >= 5 ? 'WEAK' : 'NO_TRADE';
+            totalScore >= 8 ? 'STRONG' : totalScore >= 6 ? 'VALID' : totalScore >= 4 ? 'WEAK' : 'NO_TRADE';
 
           return {
             symbol: t.symbol,
