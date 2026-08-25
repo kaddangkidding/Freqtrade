@@ -70,7 +70,7 @@ class FuturesBasketArbitrageBot:
         self.min_score_threshold = 7   # Viable Momentum / Arbitrage Surges
         
         # Basket PnL Rules
-        self.basket_tp_roi = 30.0      # +30.0% Unrealized PnL triggers CLOSE ALL & START NEW
+        self.basket_tp_roi = 10.0      # +10.0% Unrealized PnL triggers CLOSE ALL & START NEW
         self.basket_sl_roi = -25.0     # -25.0% Basket Drawdown cutoff
         self.individual_sl_ratio = 0.0070 # -0.70% individual stop loss
         
@@ -108,7 +108,7 @@ class FuturesBasketArbitrageBot:
             "bot_state": "RUNNING_ARBITRAGE_BASKET",
             "uptime_since": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "scanned_markets": 0,
-            "strategy": "3-Leg Basket Arbitrage (30% Margin | +30% ROI Wallet TP | 200% Profit Spot Transfer)",
+            "strategy": "3-Leg Basket Arbitrage (30% Margin | +10% ROI Wallet TP | 200% Profit Spot Transfer)",
             "filters": "Top Volatility & Momentum Leaders | 200% Profit Compound Engine",
             "margin_rule": "Strict 30% Margin per Position (3 Positions = 90% Sized Basket @ 50x)",
             "max_positions": 3,
@@ -254,10 +254,10 @@ class FuturesBasketArbitrageBot:
         # % of Total Wallet Balance (e.g. +$0.75 on $2.50 wallet = +30%)
         unreal_pct_of_balance = (total_unreal_pnl / wallet_bal * 100.0) if wallet_bal > 0 else 0.0
 
-        # STRICT RULE: ONLY trigger Close All when TOTAL UNREALIZED PnL reaches >= +30.0% OF WALLET BALANCE
+        # STRICT RULE: ONLY trigger Close All when TOTAL UNREALIZED PnL reaches >= +10.0% OF WALLET BALANCE
         if unreal_pct_of_balance >= self.basket_tp_roi:
-            reason = f"+{unreal_pct_of_balance:.1f}% WALLET BALANCE TP (Unrealized PnL ${total_unreal_pnl:+.4f} reached +30% of ${wallet_bal:.2f} Balance)"
-            logger.info(f"💰💰💰 [WALLET BALANCE +30% TARGET REACHED] Total Unrealized PnL: ${total_unreal_pnl:+.4f} (+{unreal_pct_of_balance:.1f}% on ${wallet_bal:.2f} Wallet Balance) -> EXECUTING CLOSE ALL & START NEW!")
+            reason = f"+{unreal_pct_of_balance:.1f}% WALLET BALANCE TP (Unrealized PnL ${total_unreal_pnl:+.4f} reached +10% of ${wallet_bal:.2f} Balance)"
+            logger.info(f"💰💰💰 [WALLET BALANCE +10% TARGET REACHED] Total Unrealized PnL: ${total_unreal_pnl:+.4f} (+{unreal_pct_of_balance:.1f}% on ${wallet_bal:.2f} Wallet Balance) -> EXECUTING CLOSE ALL & START NEW!")
             self.close_all_positions(reason=reason)
             return
 
