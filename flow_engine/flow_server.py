@@ -65,8 +65,8 @@ class Aggressive200PctScalperBot:
         
         # Aggressive Growth Parameters
         self.min_score_threshold = 7   # Viable Momentum Surges (Score >= 7/10)
-        self.margin_pct = 0.15         # 15.0% margin per position (~$0.45 - $0.50 margin @ 50x)
-        self.max_positions = 4         # Up to 4 high-velocity scalps
+        self.margin_pct = 0.15  # Exactly 15.0% margin per position (4 positions = 60% total margin, 40% reserve)         # 15.0% margin per position (~$0.45 - $0.50 margin @ 50x)
+        self.max_positions = 4  # Strictly 4 positions only         # Up to 4 high-velocity scalps
         self.default_leverage = 50
         
         # Aggressive Scalp Payoff Targets (Up to +200% ROI)
@@ -228,7 +228,7 @@ class Aggressive200PctScalperBot:
                 if (t["symbol"] in CRYPTO_SYMBOLS or t["symbol"].endswith("USDT"))
                 and t["symbol"] not in excluded
                 and not t["symbol"].startswith(("SOXL", "KORU", "SPCX", "SNXX", "SAMSUNG", "SKHY", "DRAM", "MSTR", "NVDA", "TSLA", "AAPL", "SOXS", "EWY", "INTC", "MUU", "NBIS", "AMZN", "GOOGL", "META", "MSFT", "PLTR", "ARM", "AMD"))
-                and float(t.get("quoteVolume", 0)) >= 10000000
+                and float(t.get("quoteVolume", 0)) >= 20000000
             ]
 
             # Rank by Momentum & Volatility Volume
@@ -347,7 +347,8 @@ class Aggressive200PctScalperBot:
 
         avail_margin = float(acc_payload["account"]["availableBalance"])
         wallet_bal = float(acc_payload["account"]["walletBalance"])
-        target_margin = max(0.25, wallet_bal * self.margin_pct) # 15% margin (~$0.50 margin per trade)
+        # Exactly 15% of wallet balance per position (e.g. $0.33 on $2.20, $0.50 on $3.33)
+        target_margin = max(0.12, round(wallet_bal * self.margin_pct, 3))
 
         for setup in self.top_setups:
             sym = setup["symbol"]
