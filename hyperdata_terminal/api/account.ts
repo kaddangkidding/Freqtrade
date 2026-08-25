@@ -1,7 +1,7 @@
-import crypto from 'crypto';
+import { createHmac } from 'node:crypto';
 
-const API_KEY = process.env.BINANCE_API_KEY || 'SijchDXpN3dpJA5lYiCBQOgMC2ijnNgcR0UdVgncZYNeHP7RdBgMaj719I8y5WnY';
-const SECRET_KEY = process.env.BINANCE_SECRET_KEY || 'zMQrvKFOV1CDGuGhx0kevzxhuCFgP0aDJ53W396C1M5BfIaoUEXYGGIziYp9qQZw';
+const API_KEY = process.env.BINANCE_API_KEY;
+const SECRET_KEY = process.env.BINANCE_SECRET_KEY;
 
 function signQuery(params: Record<string, any>): string {
   params['timestamp'] = Date.now();
@@ -9,7 +9,7 @@ function signQuery(params: Record<string, any>): string {
   const queryStr = Object.keys(params)
     .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`)
     .join('&');
-  const signature = crypto.createHmac('sha256', SECRET_KEY).update(queryStr).digest('hex');
+  const signature = createHmac('sha256', SECRET_KEY!).update(queryStr).digest('hex');
   return `${queryStr}&signature=${signature}`;
 }
 
@@ -21,6 +21,10 @@ export default async function handler(req: any, res: any) {
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
+  }
+
+  if (!API_KEY || !SECRET_KEY) {
+    return res.status(500).json({ error: 'Binance API keys not configured. Set BINANCE_API_KEY and BINANCE_SECRET_KEY in Vercel environment variables.' });
   }
 
   try {
