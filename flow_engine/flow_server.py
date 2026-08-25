@@ -347,6 +347,12 @@ class FuturesBasketArbitrageBot:
             # 2. Open new legs for the basket if slots are available (25% margin per leg)
             self.evaluate_auto_entries()
 
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                logger.warning(f"Binance rate limit (429), cooling down for 10s...")
+                time.sleep(10)
+            else:
+                logger.error(f"Market scan HTTP error: {e}")
         except Exception as e:
             logger.error(f"Market scan error: {e}")
 
@@ -416,7 +422,7 @@ class FuturesBasketArbitrageBot:
 
     def get_binance_account_payload(self) -> dict:
         now = time.time()
-        if now - self.last_account_fetch < 1.5:
+        if now - self.last_account_fetch < 5.0:
             return self.cached_account_payload
 
         try:
@@ -522,7 +528,7 @@ class FuturesBasketArbitrageBot:
         logger.info("🏛️ [Futures Basket Arbitrage Engine] Live Execution Active.")
         while self.is_running:
             self.fetch_bulk_market_data()
-            time.sleep(4)
+            time.sleep(6)
 
 bot = FuturesBasketArbitrageBot()
 
@@ -550,7 +556,7 @@ class FlowHTTPHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(data).encode())
             return
 
-        if path == "/api/flow/matrix":
+        if path in ("/api/flow", "/api/flow/matrix"):
             with bot.lock:
                 data = list(bot.market_data)
             self.send_response(200)
