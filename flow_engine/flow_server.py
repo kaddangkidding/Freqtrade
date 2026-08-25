@@ -200,14 +200,12 @@ class FuturesBasketArbitrageBot:
 
         total_margin = sum([p["margin"] for p in active_pos])
         total_unreal_pnl = sum([p["unrealizedPnl"] for p in active_pos])
-        basket_roi = (total_unreal_pnl / total_margin * 100) if total_margin > 0 else 0.0
+        accumulated_basket_roi = (total_unreal_pnl / total_margin * 100) if total_margin > 0 else 0.0
 
-        # Check if any single leg has hit massive +30% profit or basket hit +30%
-        has_30pct_winner = any(p["unrealizedPnlPct"] >= self.basket_tp_roi for p in active_pos)
-
-        if basket_roi >= self.basket_tp_roi or has_30pct_winner:
-            reason = f"+{basket_roi:.1f}% BASKET ROI TP (+30% Target Reached)" if basket_roi >= self.basket_tp_roi else "+30% PROFIT LEG HIT"
-            logger.info(f"💰💰💰 [BASKET TARGET REACHED] Basket ROI: +{basket_roi:.1f}% (Unrealized PnL: ${total_unreal_pnl:+.4f}) -> EXECUTING CLOSE ALL & START NEW!")
+        # STRICT RULE: ONLY trigger Close All when ACCUMULATION of ALL COINS COMBINED reaches >= +30.0% ROI
+        if accumulated_basket_roi >= self.basket_tp_roi:
+            reason = f"+{accumulated_basket_roi:.1f}% ACCUMULATED BASKET PnL (+30% ALL COINS SUM REACHED)"
+            logger.info(f"💰💰💰 [ACCUMULATED BASKET TARGET REACHED] All Coins Total Unrealized PnL: +{accumulated_basket_roi:.1f}% (${total_unreal_pnl:+.4f} USDT on ${total_margin:.2f} Margin) -> EXECUTING CLOSE ALL & START NEW!")
             self.close_all_positions(reason=reason)
             return
 
