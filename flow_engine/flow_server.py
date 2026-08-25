@@ -519,15 +519,56 @@ class FuturesBasketArbitrageBot:
         active_pos = acc_payload.get("activePositions", [])
         active_symbols = set([p["symbol"] for p in active_pos])
         
+        wallet_bal = float(acc_payload["account"]["walletBalance"])
+        avail_margin = float(acc_payload["account"]["availableBalance"])
+        target_margin = max(0.12, round(wallet_bal * self.margin_pct, 3))
+
+        # 1. REVERSE OPEN POSITION: Flip active positions if a strong opposite signal triggers
+        for pos in active_pos:
+            sym = pos["symbol"]
+            cur_dir = pos["direction"] # "LONG" or "SHORT"
+            amt = pos["size"]
+            
+            for setup in self.top_setups:
+                if setup["symbol"] == sym and setup["total_score"] >= 8:
+                    sig_dir = setup["direction"]
+                    # Opposite signal detected -> Reverse Position!
+                    if (cur_dir == "SHORT" and sig_dir == "LONG") or (cur_dir == "LONG" and sig_dir == "SHORT"):
+                        logger.info(f"🔄 [REVERSE POSITION FLIP] {sym} is currently {cur_dir}, but fresh signal is {sig_dir} ({setup['total_score']}/10)! Flipping position to {sig_dir}...")
+                        
+                        # Step A: Close current position
+                        close_side = "SELL" if cur_dir == "LONG" else "BUY"
+                        self.close_single_position(sym, close_side, amt, reason=f"REVERSE FLIP TO {sig_dir}")
+                        time.sleep(1)
+                        
+                        # Step B: Open reverse position in opposite direction
+                        rules = SYMBOL_RULES.get(sym, {})
+                        min_not = float(rules.get("minNotional", 5.0))
+                        step_size = float(rules.get("stepSize", 1.0))
+                        min_qty = float(rules.get("minQty", 1.0))
+                        qty_prec = int(rules.get("quantityPrecision", 0))
+                        p = setup["current_price"]
+                        
+                        notional = max(min_not + 0.5, target_margin * self.default_leverage)
+                        raw_qty = notional / p
+                        if step_size > 0:
+                            raw_qty = round(raw_qty / step_size) * step_size
+                        qty = round(raw_qty, qty_prec) if qty_prec > 0 else int(raw_qty)
+                        if qty < min_qty:
+                            qty = min_qty
+                            
+                        open_side = "BUY" if sig_dir == "LONG" else "SELL"
+                        self.set_symbol_leverage(sym, self.default_leverage)
+                        res = self.execute_market_order(sym, open_side, qty)
+                        if res and (res.get("status") == "FILLED" or res.get("status") == "NEW"):
+                            self.bot_status["recent_actions"].append(
+                                f"{datetime.now().strftime('%H:%M:%S')} - Reverse Flipped {sym} from {cur_dir} to {sig_dir} (30% Margin, {self.default_leverage}x)"
+                            )
+                        break
+
         # Max 3 concurrent basket positions (3 x 30% = 90% allocation)
         if len(active_symbols) >= self.max_positions:
             return
-
-        avail_margin = float(acc_payload["account"]["availableBalance"])
-        wallet_bal = float(acc_payload["account"]["walletBalance"])
-        
-        # Exactly 30% of wallet balance per position (e.g. $0.67 on $2.24 wallet)
-        target_margin = max(0.12, round(wallet_bal * self.margin_pct, 3))
 
         now = time.time()
         for setup in self.top_setups:
