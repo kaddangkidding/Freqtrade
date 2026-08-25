@@ -64,8 +64,8 @@ class FuturesBasketArbitrageBot:
         self.total_cycles = 0
         
         # Basket Arbitrage Parameters
-        self.max_positions = 4         # Exactly 4 positions in the arbitrage basket
-        self.margin_pct = 0.25         # Exactly 25.0% margin per position (100% basket allocation)
+        self.max_positions = 3         # Exactly 3 positions in the arbitrage basket
+        self.margin_pct = 0.30         # Exactly 30.0% margin per position (90% basket allocation)
         self.default_leverage = 50
         self.min_score_threshold = 7   # Viable Momentum / Arbitrage Surges
         
@@ -108,10 +108,10 @@ class FuturesBasketArbitrageBot:
             "bot_state": "RUNNING_ARBITRAGE_BASKET",
             "uptime_since": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "scanned_markets": 0,
-            "strategy": "4-Leg Basket Arbitrage (25% Margin | +30% ROI Basket TP | 200% Profit Spot Transfer)",
+            "strategy": "3-Leg Basket Arbitrage (30% Margin | +30% ROI Wallet TP | 200% Profit Spot Transfer)",
             "filters": "Top Volatility & Momentum Leaders | 200% Profit Compound Engine",
-            "margin_rule": "Strict 25% Margin per Position (4 Positions = 100% Sized Basket @ 50x)",
-            "max_positions": 4,
+            "margin_rule": "Strict 30% Margin per Position (3 Positions = 90% Sized Basket @ 50x)",
+            "max_positions": 3,
             "last_cycle_time": datetime.now().strftime("%H:%M:%S"),
             "rate_limit_usage": "< 2% (Lightweight)",
             "compound_info": {
@@ -567,14 +567,14 @@ class FuturesBasketArbitrageBot:
         active_pos = acc_payload.get("activePositions", [])
         active_symbols = set([p["symbol"] for p in active_pos])
         
-        # Max 4 concurrent basket positions
+        # Max 3 concurrent basket positions (3 x 30% = 90% allocation)
         if len(active_symbols) >= self.max_positions:
             return
 
         avail_margin = float(acc_payload["account"]["availableBalance"])
         wallet_bal = float(acc_payload["account"]["walletBalance"])
         
-        # Exactly 25% of wallet balance per position (e.g. $0.30 on $1.20 wallet)
+        # Exactly 30% of wallet balance per position (e.g. $0.67 on $2.24 wallet)
         target_margin = max(0.12, round(wallet_bal * self.margin_pct, 3))
 
         now = time.time()
@@ -624,7 +624,7 @@ class FuturesBasketArbitrageBot:
                 qty = min_qty
 
             side = "BUY" if direction == "LONG" else "SELL"
-            logger.info(f"🏛️ [ARBITRAGE LEG ENTRY] {sym} | Signal: {direction} ({score}/10) | Exec: {side} | Margin: 25% (${target_margin}) | Setup: {setup_name}")
+            logger.info(f"🏛️ [ARBITRAGE LEG ENTRY] {sym} | Signal: {direction} ({score}/10) | Exec: {side} | Margin: 30% (${target_margin}) | Setup: {setup_name}")
             
             self.set_symbol_leverage(sym, self.default_leverage)
             res = self.execute_market_order(sym, side, qty)
@@ -632,7 +632,7 @@ class FuturesBasketArbitrageBot:
                 active_symbols.add(sym)
                 avail_margin -= target_margin
                 self.bot_status["recent_actions"].append(
-                    f"{datetime.now().strftime('%H:%M:%S')} - Opened Arbitrage Leg {direction} {sym} (25% Margin, {self.default_leverage}x)"
+                    f"{datetime.now().strftime('%H:%M:%S')} - Opened Arbitrage Leg {direction} {sym} (30% Margin, {self.default_leverage}x)"
                 )
                 time.sleep(1)
 
