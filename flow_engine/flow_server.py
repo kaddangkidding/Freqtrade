@@ -72,7 +72,7 @@ class FuturesBasketArbitrageBot:
         
         # Basket PnL Rules
         self.basket_tp_roi = 10.0      # +10.0% Unrealized PnL triggers CLOSE ALL & START NEW
-        self.basket_sl_roi = -100.0    # -100.0% Basket Drawdown cutoff
+        self.basket_sl_roi = -35.0     # -35.0% Basket Drawdown cutoff
         self.individual_sl_ratio = 0.0070 # -0.70% individual stop loss
         
         # Max Leverage Map per Symbol
@@ -114,7 +114,7 @@ class FuturesBasketArbitrageBot:
             "paper_mode": False,
             "uptime_since": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "scanned_markets": 0,
-            "strategy": "Trend Breakout Basket (30% Margin per Leg | MAX Leverage on Every Coin | +10% TP | -100% SL)",
+            "strategy": "Trend Breakout Basket (30% Margin per Leg | MAX Leverage on Every Coin | +10% TP | -35% SL)",
             "filters": "Top Volatility & Momentum Leaders | 200% Profit Compound Engine",
             "margin_rule": "Strict 30% Wallet Balance Margin per Position @ Max Symbol Leverage",
             "max_positions": 5,
@@ -295,16 +295,16 @@ class FuturesBasketArbitrageBot:
             self.close_all_positions(reason=reason)
             return
 
-        # Individual Position Stop Loss at -100% ROI
+        # Individual Position Stop Loss at -35% ROI
         for pos in active_pos:
             sym = pos["symbol"]
             is_long = pos["direction"] == "LONG"
             size = pos["size"]
             pnl_pct = pos["unrealizedPnlPct"]
             
-            if pnl_pct <= -100.0:
+            if pnl_pct <= -35.0:
                 close_side = "SELL" if is_long else "BUY"
-                logger.info(f"🛑 [INDIVIDUAL POSITION STOP LOSS -100%] {sym} PnL: {pnl_pct:.1f}% -> Cutting loss at -100%!")
+                logger.info(f"🛑 [INDIVIDUAL POSITION STOP LOSS -35%] {sym} PnL: {pnl_pct:.1f}% -> Cutting loss at -35%!")
                 self.close_single_position(sym, close_side, size, reason=f"SL ({pnl_pct:.1f}%)")
 
     def transfer_to_spot(self, amount: float) -> dict:
