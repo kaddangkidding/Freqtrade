@@ -267,56 +267,8 @@ class FuturesBasketArbitrageBot:
             self.close_all_positions(reason=reason)
             return
 
-        # Clean up peak tracking for closed positions
-        active_sym_set = set([p["symbol"] for p in active_pos])
-        for s in list(self.position_peak_roi.keys()):
-            if s not in active_sym_set:
-                del self.position_peak_roi[s]
-
-        # Individual Position Trailing Profit, Break-Even Locking & Risk Management
-        for pos in active_pos:
-            sym = pos["symbol"]
-            entry = pos["entryPrice"]
-            mark = pos["markPrice"]
-            is_long = pos["direction"] == "LONG"
-            size = pos["size"]
-            pnl_pct = pos["unrealizedPnlPct"]
-            close_side = "SELL" if is_long else "BUY"
-
-            # Update highest peak ROI for trailing profit
-            peak = max(self.position_peak_roi.get(sym, pnl_pct), pnl_pct)
-            self.position_peak_roi[sym] = peak
-
-            # 1. HARD PROFIT LOCK: Any runner hitting >= +30.0% takes profit immediately!
-            if pnl_pct >= 30.0:
-                logger.info(f"🎯 [RUNNER TP TRIGGERED] {sym} PnL: +{pnl_pct:.1f}% -> Locking in massive gain immediately!")
-                self.close_single_position(sym, close_side, size, reason=f"+{pnl_pct:.1f}% RUNNER TP")
-                continue
-
-            # 2. DYNAMIC TRAILING PROFIT:
-            # If peak reached >= +20.0%, trail by 6% (e.g. peak +25% -> locks if drops to +19%)
-            if peak >= 20.0 and pnl_pct <= (peak - 6.0):
-                logger.info(f"💎 [TRAILING PROFIT LOCKED] {sym} PnL: +{pnl_pct:.1f}% (Peak was +{peak:.1f}%) -> Trailing Stop triggered!")
-                self.close_single_position(sym, close_side, size, reason=f"TRAILING TP (+{pnl_pct:.1f}%, peak +{peak:.1f}%)")
-                continue
-
-            # If peak reached >= +12.0%, trail by 4% (e.g. peak +16% -> locks if drops to +12%)
-            if peak >= 12.0 and pnl_pct <= (peak - 4.0):
-                logger.info(f"💎 [TRAILING PROFIT LOCKED] {sym} PnL: +{pnl_pct:.1f}% (Peak was +{peak:.1f}%) -> Trailing Stop triggered!")
-                self.close_single_position(sym, close_side, size, reason=f"TRAILING TP (+{pnl_pct:.1f}%, peak +{peak:.1f}%)")
-                continue
-
-            # 3. BREAK-EVEN PROTECTION:
-            # If trade was up >= +10.0%, never allow it to go negative (locks at +1.0% break-even)
-            if peak >= 10.0 and pnl_pct <= 1.0:
-                logger.info(f"🛡️ [BREAK-EVEN STOP TRIGGERED] {sym} PnL: +{pnl_pct:.1f}% (Peak was +{peak:.1f}%) -> Protected at break-even!")
-                self.close_single_position(sym, close_side, size, reason=f"BREAK-EVEN (+{pnl_pct:.1f}%, peak +{peak:.1f}%)")
-                continue
-
-            # 4. HARD STOP LOSS CUTOFF (-20% margin drawdown / quick loss cutoff)
-            if pnl_pct <= -20.0:
-                logger.info(f"🛑 [INDIVIDUAL STOP LOSS] {sym} PnL: {pnl_pct:.1f}% -> Cutting loss quickly.")
-                self.close_single_position(sym, close_side, size, reason=f"SL ({pnl_pct:.1f}%)")
+        # Micro protections deleted to prevent fee churn. Trades run freely until +30% wallet balance target or basket cutoff.
+        return
 
     def transfer_to_spot(self, amount: float) -> dict:
         """
