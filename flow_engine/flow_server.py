@@ -75,6 +75,10 @@ class FuturesBasketArbitrageBot:
         self.basket_sl_roi = -25.0     # -25.0% Basket Drawdown cutoff
         self.individual_sl_ratio = 0.0070 # -0.70% individual stop loss
         
+        # Max Leverage Map per Symbol
+        self.symbol_max_leverage: Dict[str, int] = {}
+        self.load_symbol_leverage_brackets()
+        
         # State Tracking & Anti-Falling Knife Cooldown Lockout
         self.symbol_cooldown: Dict[str, float] = {}
         self.position_peak_roi: Dict[str, float] = {}
@@ -105,14 +109,14 @@ class FuturesBasketArbitrageBot:
         self.compound_state = self.load_compound_state()
         
         self.bot_status = {
-            "mode": "30% MARGIN CONTRARIAN BASKET ARBITRAGE ACTIVE",
-            "bot_state": "RUNNING_30PCT_MARGIN",
+            "mode": "MAX LEVERAGE BASKET ARBITRAGE (30% MARGIN) ACTIVE",
+            "bot_state": "RUNNING_MAX_LEVERAGE",
             "paper_mode": False,
             "uptime_since": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "scanned_markets": 0,
-            "strategy": "Contrarian Basket (30% Margin per Leg | Signal BUY ➔ Open SHORT | Signal SELL ➔ Open LONG | +10% TP | -25% SL)",
+            "strategy": "Trend Breakout Basket (30% Margin per Leg | MAX Leverage on Every Coin | +10% TP | -25% SL)",
             "filters": "Top Volatility & Momentum Leaders | 200% Profit Compound Engine",
-            "margin_rule": "Strict 30% Wallet Balance Margin per Position @ 50x",
+            "margin_rule": "Strict 30% Wallet Balance Margin per Position @ Max Symbol Leverage",
             "max_positions": 5,
             "last_cycle_time": datetime.now().strftime("%H:%M:%S"),
             "rate_limit_usage": "< 2% (Lightweight)",
@@ -151,12 +155,34 @@ class FuturesBasketArbitrageBot:
         except Exception as e:
             logger.error(f"Error saving compound_state.json: {e}")
 
-    def set_symbol_leverage(self, symbol: str, leverage: int = 50):
+    def load_symbol_leverage_brackets(self):
         try:
-            url = f"https://fapi.binance.com/fapi/v1/leverage?{sign_query({'symbol': symbol, 'leverage': leverage})}"
+            url = f"https://fapi.binance.com/fapi/v1/leverageBracket?{sign_query({})}"
+            req = urllib.request.Request(url, headers={"X-MBX-APIKEY": API_KEY, "User-Agent": "HyperData/2.0"})
+            with urllib.request.urlopen(req, timeout=5) as r:
+                brackets = json.loads(r.read().decode('utf-8'))
+                if isinstance(brackets, list):
+                    for b in brackets:
+                        sym = b.get("symbol")
+                        br = b.get("brackets", [])
+                        if sym and br:
+                            self.symbol_max_leverage[sym] = int(br[0].get("initialLeverage", 50))
+            logger.info(f"⚡ [MAX LEVERAGE LOADED] Cached max leverage brackets for {len(self.symbol_max_leverage)} Binance pairs.")
+        except Exception as e:
+            logger.warning(f"Could not load leverage brackets: {e}")
+
+    def get_max_leverage(self, symbol: str) -> int:
+        return self.symbol_max_leverage.get(symbol, 50)
+
+    def set_symbol_leverage(self, symbol: str, leverage: Optional[int] = None):
+        target_lev = leverage or self.get_max_leverage(symbol)
+        try:
+            url = f"https://fapi.binance.com/fapi/v1/leverage?{sign_query({'symbol': symbol, 'leverage': target_lev})}"
             req = urllib.request.Request(url, headers={"X-MBX-APIKEY": API_KEY, "User-Agent": "HyperData/2.0"}, method="POST")
             with urllib.request.urlopen(req, timeout=4) as r:
-                return json.loads(r.read().decode('utf-8'))
+                res = json.loads(r.read().decode('utf-8'))
+                logger.info(f"⚙️ [LEVERAGE SET] {symbol} -> {target_lev}x Max Leverage")
+                return res
         except urllib.error.HTTPError as e:
             err_body = e.read().decode('utf-8') if hasattr(e, 'read') else str(e)
             logger.error(f"Binance set leverage error on {symbol}: {e} [{err_body}]")
@@ -524,7 +550,7 @@ class FuturesBasketArbitrageBot:
 
     def evaluate_auto_entries(self):
         """
-        Builds the Multi-Position Arbitrage Basket (Opens as many valid positions as possible)
+        Builds the Trend Arbitrage Basket (30% Margin per leg @ MAX LEVERAGE per coin)
         """
         acc_payload = self.get_binance_account_payload()
         active_pos = acc_payload.get("activePositions", [])
@@ -533,53 +559,8 @@ class FuturesBasketArbitrageBot:
         wallet_bal = float(acc_payload["account"]["walletBalance"])
         avail_margin = float(acc_payload["account"]["availableBalance"])
         
-        # STRICT RULE: 30% of Wallet Balance Margin per Position (e.g. $0.33 on $1.11 wallet)
+        # STRICT RULE: 30% of Wallet Balance Margin per Position
         target_margin = max(0.12, round(wallet_bal * self.margin_pct, 3))
-
-        # 1. REVERSE OPEN POSITION: Flip active positions if a strong opposite contrarian signal triggers
-        for pos in active_pos:
-            sym = pos["symbol"]
-            cur_dir = pos["direction"] # "LONG" or "SHORT"
-            amt = pos["size"]
-            
-            for setup in self.top_setups:
-                if setup["symbol"] == sym and setup["total_score"] >= 8:
-                    sig_dir = setup["direction"]
-                    # INVERTED / OPPOSITE RULE: Signal LONG -> Target SHORT | Signal SHORT -> Target LONG
-                    target_dir = "SHORT" if sig_dir == "LONG" else "LONG"
-                    
-                    if cur_dir != target_dir:
-                        logger.info(f"🔄 [REVERSE OPPOSITE FLIP] {sym} is {cur_dir}, Signal is {sig_dir} -> Opening Opposite {target_dir} ({setup['total_score']}/10)...")
-                        
-                        # Step A: Close current position
-                        close_side = "SELL" if cur_dir == "LONG" else "BUY"
-                        self.close_single_position(sym, close_side, amt, reason=f"OPPOSITE FLIP TO {target_dir}")
-                        time.sleep(1)
-                        
-                        # Step B: Open reverse position in opposite direction
-                        rules = SYMBOL_RULES.get(sym, {})
-                        min_not = float(rules.get("minNotional", 5.0))
-                        step_size = float(rules.get("stepSize", 1.0))
-                        min_qty = float(rules.get("minQty", 1.0))
-                        qty_prec = int(rules.get("quantityPrecision", 0))
-                        p = setup["current_price"]
-                        
-                        notional = max(min_not + 0.5, target_margin * self.default_leverage)
-                        raw_qty = notional / p
-                        if step_size > 0:
-                            raw_qty = round(raw_qty / step_size) * step_size
-                        qty = round(raw_qty, qty_prec) if qty_prec > 0 else int(raw_qty)
-                        if qty < min_qty:
-                            qty = min_qty
-                            
-                        open_side = "BUY" if target_dir == "LONG" else "SELL"
-                        self.set_symbol_leverage(sym, self.default_leverage)
-                        res = self.execute_market_order(sym, open_side, qty)
-                        if res and (res.get("status") == "FILLED" or res.get("status") == "NEW"):
-                            self.bot_status["recent_actions"].append(
-                                f"{datetime.now().strftime('%H:%M:%S')} - Flipped {sym} to Opposite {target_dir} (Signal {sig_dir}) (30% Margin, {self.default_leverage}x)"
-                            )
-                        break
 
         # Max positions as long as 30% margin is available
         if len(active_symbols) >= self.max_positions:
@@ -613,7 +594,10 @@ class FuturesBasketArbitrageBot:
             min_qty = float(rules.get("minQty", 1.0))
             qty_prec = int(rules.get("quantityPrecision", 0))
 
-            notional = max(min_not + 0.5, target_margin * self.default_leverage)
+            # Dynamic MAX LEVERAGE per Coin
+            max_lev = self.get_max_leverage(sym)
+
+            notional = max(min_not + 0.5, target_margin * max_lev)
             raw_qty = notional / p
             
             if step_size > 0:
@@ -624,21 +608,20 @@ class FuturesBasketArbitrageBot:
             if qty < min_qty:
                 qty = min_qty
 
-            # REVERSE / OPPOSITE EXECUTION:
-            # If Signal == LONG (BUY) -> Open SHORT (SELL)
-            # If Signal == SHORT (SELL) -> Open LONG (BUY)
-            target_side = "SELL" if direction == "LONG" else "BUY"
-            target_direction = "SHORT" if direction == "LONG" else "LONG"
+            # PURE TREND DIRECTION EXECUTION (Reverse Rule Permanently Removed):
+            # Signal LONG (BUY) -> Execute BUY (Open LONG)
+            # Signal SHORT (SELL) -> Execute SELL (Open SHORT)
+            side = "BUY" if direction == "LONG" else "SELL"
             
-            logger.info(f"🏛️ [OPPOSITE REVERSE ENTRY] {sym} | Signal: {direction} ({score}/10) | Executed Opposite: {target_side} ({target_direction}) | Margin: 30% (${target_margin:.2f}) | Setup: Inverted {setup_name}")
+            logger.info(f"🏛️ [MAX LEVERAGE ARBITRAGE ENTRY] {sym} | Signal: {direction} ({score}/10) | Exec: {side} | Margin: 30% (${target_margin:.2f}) | Leverage: {max_lev}x Max | Setup: {setup_name}")
             
-            self.set_symbol_leverage(sym, self.default_leverage)
-            res = self.execute_market_order(sym, target_side, qty)
+            self.set_symbol_leverage(sym, max_lev)
+            res = self.execute_market_order(sym, side, qty)
             if res and (res.get("status") == "FILLED" or res.get("status") == "NEW"):
                 active_symbols.add(sym)
                 avail_margin -= target_margin
                 self.bot_status["recent_actions"].append(
-                    f"{datetime.now().strftime('%H:%M:%S')} - Opened Opposite {target_direction} on {sym} (Signal was {direction}) (30% Margin, {self.default_leverage}x)"
+                    f"{datetime.now().strftime('%H:%M:%S')} - Opened {direction} {sym} ({max_lev}x Max Leverage, 30% Margin)"
                 )
                 time.sleep(1)
 
