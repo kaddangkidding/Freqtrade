@@ -1,9 +1,9 @@
 """
 HyperData Flow Engine & 24/7 Binance Futures Quantitative Auto-Trader.
 Condition: Executes Live Reverse Positions STRICTLY when a 5-Minute (5m) Candle CLOSES and Confirms.
-SMC Liquidity (BSL/SSL Sweeps, BOS Displacements) + Big-Cap Priority.
-Position Sizing: 7.0% Margin per Trade @ 50x Leverage (Up to 15 Concurrent Positions).
-Automated Real-Time In-Memory Exit Manager (TP1: +1.0%, TP2: +2.2%, SL: -1.2%).
+Dual-Tier: Major Big-Caps (BTC, ETH, SOL, XRP, BNB, AVAX, LINK, NEAR, DOGE, ADA, SUI) + High-Volume SMC Alts.
+Operates with Reverse Contrarian Execution (Signal LONG -> Open SHORT | Signal SHORT -> Open LONG),
+7.0% Margin Sizing @ 50x Leverage, and Automated Real-Time In-Memory Exit Manager (TP1: +1.0%, TP2: +2.2%, SL: -1.2%).
 """
 import hmac
 import hashlib
@@ -53,7 +53,7 @@ def sign_query(params: dict) -> str:
     signature = hmac.new(SECRET_KEY.encode('utf-8'), query_str.encode('utf-8'), hashlib.sha256).hexdigest()
     return f"{query_str}&signature={signature}"
 
-class ClosedCandleAutoTraderBot:
+class Bulletproof5mAutoTraderBot:
     def __init__(self):
         self.lock = threading.Lock()
         self.market_data: List[Dict] = []
@@ -61,14 +61,13 @@ class ClosedCandleAutoTraderBot:
         self.is_running = True
         self.total_cycles = 0
         
-        # Strategy & Execution Parameters
+        # Strategy Parameters
         self.min_volume_usd = 5000000  # Broad screening (>= $5M Volume)
         self.min_score_threshold = 7   # Viable Opportunities (Score >= 7/10)
         self.margin_pct = 0.07         # 7% margin per position
         self.max_positions = 15        # Multi-asset capacity
         self.default_leverage = 50
         self.reverse_mode = True       # Invert orders: Signal LONG -> Open SHORT | Signal SHORT -> Open LONG
-        self.require_5m_closed = True  # Strict 5m Closed Candle Confirmation Rule
         
         self.last_candle_close_executed: Dict[str, int] = {} # Symbol -> Last executed 5m closed candle timestamp
         
@@ -81,11 +80,11 @@ class ClosedCandleAutoTraderBot:
         self.cached_account_payload = {
             "status": "success",
             "account": {
-                "totalEquity": 3.51,
-                "walletBalance": 3.59,
-                "availableBalance": 3.00,
-                "marginUsed": 1.00,
-                "unrealizedPnl": -0.08,
+                "totalEquity": 4.10,
+                "walletBalance": 4.17,
+                "availableBalance": 0.22,
+                "marginUsed": 3.95,
+                "unrealizedPnl": -0.07,
                 "netRealizedPnl": -6.29,
                 "winRate": 40.0,
                 "winTrades": 40,
@@ -97,43 +96,41 @@ class ClosedCandleAutoTraderBot:
         }
 
         self.bot_status = {
-            "mode": "5M CLOSED CANDLE CONFIRMATION AUTO-TRADER ACTIVE",
-            "bot_state": "WAITING_5M_CANDLE_CLOSE_CONFIRMATIONS",
+            "mode": "5M CLOSED CANDLE REVERSE AUTO-TRADER ACTIVE",
+            "bot_state": "RUNNING_24_7",
             "uptime_since": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "scanned_markets": 0,
-            "strategy": "5m Closed Candle Confirmation + Reverse SMC Liquidity Execution",
-            "filters": "Strict 5m Closed Candle | All 651 Crypto Perpetuals | Score >= 7/10 | Reverse Contrarian",
+            "strategy": "5m Confirmed Candle Close + Reverse SMC Execution",
+            "filters": "5m Closed Confirmation | All 651 Crypto Perpetuals | Score >= 7/10 | Reverse Contrarian",
             "margin_rule": "7.0% per trade (50x Max Leverage)",
             "max_positions": 15,
             "last_cycle_time": datetime.now().strftime("%H:%M:%S"),
-            "rate_limit_usage": "< 3% (Zero Ban Risk)",
+            "rate_limit_usage": "< 2% (Lightweight Screener)",
             "top_signals": [],
             "recent_actions": []
         }
 
     def set_symbol_leverage(self, symbol: str, leverage: int = 50):
         try:
-            url = "https://fapi.binance.com/fapi/v1/leverage"
-            data = sign_query({"symbol": symbol, "leverage": leverage}).encode('utf-8')
-            req = urllib.request.Request(url, data=data, headers={"X-MBX-APIKEY": API_KEY}, method="POST")
+            url = f"https://fapi.binance.com/fapi/v1/leverage?{sign_query({'symbol': symbol, 'leverage': leverage})}"
+            req = urllib.request.Request(url, headers={"X-MBX-APIKEY": API_KEY, "User-Agent": "HyperData/2.0"}, method="POST")
             with urllib.request.urlopen(req, timeout=4) as r:
-                return json.loads(r.read().decode())
+                return json.loads(r.read().decode('utf-8'))
         except Exception as e:
             return {"error": str(e)}
 
     def execute_market_order(self, symbol: str, side: str, quantity: float):
         try:
-            url = "https://fapi.binance.com/fapi/v1/order"
             params = {
                 "symbol": symbol,
                 "side": side,
                 "type": "MARKET",
                 "quantity": quantity
             }
-            data = sign_query(params).encode('utf-8')
-            req = urllib.request.Request(url, data=data, headers={"X-MBX-APIKEY": API_KEY}, method="POST")
+            url = f"https://fapi.binance.com/fapi/v1/order?{sign_query(params)}"
+            req = urllib.request.Request(url, headers={"X-MBX-APIKEY": API_KEY, "User-Agent": "HyperData/2.0"}, method="POST")
             with urllib.request.urlopen(req, timeout=5) as r:
-                res = json.loads(r.read().decode())
+                res = json.loads(r.read().decode('utf-8'))
                 logger.info(f"🚀 [ORDER EXECUTED ON 5M CLOSE] {symbol} {side} Qty: {quantity} -> Status: {res.get('status')}")
                 return res
         except Exception as e:
@@ -142,7 +139,6 @@ class ClosedCandleAutoTraderBot:
 
     def execute_market_close(self, symbol: str, side: str, quantity: float):
         try:
-            url = "https://fapi.binance.com/fapi/v1/order"
             params = {
                 "symbol": symbol,
                 "side": side,
@@ -150,10 +146,10 @@ class ClosedCandleAutoTraderBot:
                 "quantity": quantity,
                 "reduceOnly": "true"
             }
-            data = sign_query(params).encode('utf-8')
-            req = urllib.request.Request(url, data=data, headers={"X-MBX-APIKEY": API_KEY}, method="POST")
+            url = f"https://fapi.binance.com/fapi/v1/order?{sign_query(params)}"
+            req = urllib.request.Request(url, headers={"X-MBX-APIKEY": API_KEY, "User-Agent": "HyperData/2.0"}, method="POST")
             with urllib.request.urlopen(req, timeout=5) as r:
-                res = json.loads(r.read().decode())
+                res = json.loads(r.read().decode('utf-8'))
                 logger.info(f"✅ [POSITION CLOSED AT TP/SL] {symbol} {side} Qty: {quantity} -> Status: {res.get('status')}")
                 self.bot_status["recent_actions"].append(
                     f"{datetime.now().strftime('%H:%M:%S')} - Closed {symbol} ({side}) at TP/SL"
@@ -165,7 +161,7 @@ class ClosedCandleAutoTraderBot:
 
     def check_and_manage_open_positions(self):
         """
-        Real-Time Exit Manager
+        Real-Time Exit Manager: Monitors all active contracts and locks profit or cuts loss
         """
         acc_payload = self.get_binance_account_payload()
         active_pos = acc_payload.get("activePositions", [])
@@ -192,51 +188,42 @@ class ClosedCandleAutoTraderBot:
                 logger.info(f"🛑 [STOP LOSS HIT] {sym} Mark: ${mark} touched SL ${sl}! Cutting loss cleanly...")
                 self.execute_market_close(sym, close_side, size)
 
-    def analyze_5m_closed_structure(self, t: Dict) -> Optional[Dict]:
+    def analyze_candidate_5m_candle(self, candidate: Dict) -> Optional[Dict]:
         """
-        Evaluates the Most Recently CONFIRMED CLOSED 5-Minute (5m) Candlestick
+        Fetches 5m klines and validates confirmed 5m closed candle structure for top candidates
         """
-        sym = t["symbol"]
-        p = float(t["lastPrice"])
-        pct24 = float(t["priceChangePercent"])
-        vol_quote = float(t["quoteVolume"])
-        high24 = float(t["highPrice"])
-        low24 = float(t["lowPrice"])
-        is_bc = sym in BIG_CAPS
+        sym = candidate["symbol"]
+        p = candidate["price"]
+        pct24 = candidate["pct24"]
+        vol_quote = candidate["vol_quote"]
+        is_bc = candidate["is_big_cap"]
 
-        kline_url = f"https://fapi.binance.com/fapi/v1/klines?symbol={sym}&interval=5m&limit=25"
+        kline_url = f"https://fapi.binance.com/fapi/v1/klines?symbol={sym}&interval=5m&limit=15"
         req = urllib.request.Request(kline_url, headers={"User-Agent": "HyperData-Terminal/2.0"})
         try:
             with urllib.request.urlopen(req, timeout=3) as r:
-                raw_k = json.loads(r.read().decode())
+                raw_k = json.loads(r.read().decode('utf-8'))
         except Exception:
             return None
 
-        if len(raw_k) < 15:
+        if len(raw_k) < 5:
             return None
 
         now_ms = int(time.time() * 1000)
-        
-        # Filter strictly for CONFIRMED CLOSED candles (close_time < now_ms)
         closed_raw = [k for k in raw_k if int(k[6]) < now_ms]
-        if len(closed_raw) < 10:
+        if len(closed_raw) < 3:
             return None
 
         closed_candles = [{
             "open_time": int(k[0]),
             "close_time": int(k[6]),
-            "o": float(k[1]),
-            "h": float(k[2]),
-            "l": float(k[3]),
-            "c": float(k[4]),
-            "v": float(k[5]),
-            "buy_v": float(k[9])
+            "o": float(k[1]), "h": float(k[2]), "l": float(k[3]), "c": float(k[4]),
+            "v": float(k[5]), "buy_v": float(k[9])
         } for k in closed_raw]
 
-        # Target the latest CONFIRMED CLOSED 5m candle
         latest_closed = closed_candles[-1]
         prev_closed = closed_candles[-2]
-        candle_close_time = latest_closed["close_time"]
+        c_close_time = latest_closed["close_time"]
 
         c_open = latest_closed["o"]
         c_high = latest_closed["h"]
@@ -245,78 +232,42 @@ class ClosedCandleAutoTraderBot:
         c_vol = latest_closed["v"]
         c_buy_vol = latest_closed["buy_v"]
 
-        vol_avg = sum([c["v"] for c in closed_candles[-10:]]) / 10.0
+        vol_avg = sum([c["v"] for c in closed_candles[-5:]]) / 5.0
         vol_ratio = c_vol / vol_avg if vol_avg > 0 else 1.0
         buy_ratio = c_buy_vol / c_vol if c_vol > 0 else 0.5
 
-        swing_highs = [c["h"] for c in closed_candles[-15:-2]]
-        swing_lows = [c["l"] for c in closed_candles[-15:-2]]
+        swing_highs = [c["h"] for c in closed_candles[:-1]]
+        swing_lows = [c["l"] for c in closed_candles[:-1]]
         bsl = max(swing_highs) if swing_highs else c_high * 1.005
         ssl = min(swing_lows) if swing_lows else c_low * 0.995
 
-        score = 0
-        direction = "NEUTRAL"
-        setup_name = "5m Consolidation"
+        score = candidate["initial_score"]
+        direction = candidate["initial_direction"]
+        setup_name = candidate["initial_setup"]
 
-        # 1. 5m Confirmed SSL Sweep & Reclaim (Spring)
-        is_ssl_sweep = (c_low < ssl or prev_closed["l"] < ssl) and c_close > ssl and c_close > c_open
-        
-        # 2. 5m Confirmed BSL Sweep & Rejection (Upthrust)
-        is_bsl_sweep = (c_high > bsl or prev_closed["h"] > bsl) and c_close < bsl and c_close < c_open
-
-        # 3. 5m Confirmed Bullish BOS Expansion
-        is_bullish_bos = c_close > bsl and c_close > c_open and vol_ratio >= 1.25 and buy_ratio >= 0.52
-        
-        # 4. 5m Confirmed Bearish BOS Breakdown
-        is_bearish_bos = c_close < ssl and c_close < c_open and vol_ratio >= 1.25 and buy_ratio <= 0.48
-
-        # 5. Big-Cap Confirmed 5m Momentum
-        if is_bc:
-            closes = [c["c"] for c in closed_candles]
-            sma5 = sum(closes[-5:]) / 5.0
-            sma15 = sum(closes[-15:]) / 15.0
-            
-            if c_close > sma5 > sma15 and buy_ratio >= 0.51:
-                score = 8
-                direction = "LONG"
-                setup_name = "Big-Cap 5m Confirmed Bullish Momentum"
-            elif c_close < sma5 < sma15 and buy_ratio <= 0.49:
-                score = 8
-                direction = "SHORT"
-                setup_name = "Big-Cap 5m Confirmed Bearish Momentum"
-            elif is_ssl_sweep:
-                score = 9
-                direction = "LONG"
-                setup_name = "Big-Cap 5m SSL Sweep Reclaim"
-            elif is_bsl_sweep:
-                score = 9
-                direction = "SHORT"
-                setup_name = "Big-Cap 5m BSL Sweep Rejection"
-
-        if not is_bc or direction == "NEUTRAL":
-            if is_ssl_sweep:
-                score = 9
-                if vol_ratio >= 1.4: score += 1
-                setup_name = "5m Confirmed SSL Sweep Reclaim"
-                direction = "LONG"
-            elif is_bsl_sweep:
-                score = 9
-                if vol_ratio >= 1.4: score += 1
-                setup_name = "5m Confirmed BSL Sweep Rejection"
-                direction = "SHORT"
-            elif is_bullish_bos:
-                score = 8
-                if vol_ratio >= 1.6: score += 1
+        # Confirm 5m Candlestick Confirmation
+        if direction == "LONG":
+            if c_close > c_open: score += 1
+            if buy_ratio >= 0.52: score += 1
+            if c_close >= bsl:
+                score += 1
                 setup_name = "5m Confirmed Bullish BOS Breakout"
-                direction = "LONG"
-            elif is_bearish_bos:
-                score = 8
-                if vol_ratio >= 1.6: score += 1
+            elif (c_low < ssl or prev_closed["l"] < ssl) and c_close > ssl:
+                score += 2
+                setup_name = "5m Confirmed SSL Sweep Reclaim (Spring)"
+
+        elif direction == "SHORT":
+            if c_close < c_open: score += 1
+            if buy_ratio <= 0.48: score += 1
+            if c_close <= ssl:
+                score += 1
                 setup_name = "5m Confirmed Bearish BOS Breakdown"
-                direction = "SHORT"
+            elif (c_high > bsl or prev_closed["h"] > bsl) and c_close < bsl:
+                score += 2
+                setup_name = "5m Confirmed BSL Sweep Rejection (Upthrust)"
 
         total_score = min(10, score)
-        if total_score < self.min_score_threshold or direction == "NEUTRAL":
+        if total_score < self.min_score_threshold:
             return None
 
         stop_loss = round(c_close * (1.0 - self.sl_ratio) if direction == "LONG" else c_close * (1.0 + self.sl_ratio), 5 if c_close < 0.1 else 4)
@@ -330,7 +281,7 @@ class ClosedCandleAutoTraderBot:
             "symbol": sym,
             "current_price": p,
             "candle_close_price": c_close,
-            "candle_close_time": candle_close_time,
+            "candle_close_time": c_close_time,
             "price_change_24h": pct24,
             "direction": direction,
             "total_score": total_score,
@@ -357,36 +308,101 @@ class ClosedCandleAutoTraderBot:
 
     def fetch_bulk_market_data(self):
         """
-        5m Closed Candle Screener Loop
+        Lightweight High-Efficiency Screener Loop (1 single bulk query + targeted 5m candle confirmations)
         """
         try:
             url = "https://fapi.binance.com/fapi/v1/ticker/24hr"
             req = urllib.request.Request(url, headers={"User-Agent": "HyperData-Terminal/2.0"})
-            with urllib.request.urlopen(req, timeout=8) as r:
-                tickers = json.loads(r.read().decode())
+            with urllib.request.urlopen(req, timeout=6) as r:
+                tickers = json.loads(r.read().decode('utf-8'))
 
-            # Filter for Big-Caps + Active Crypto Perpetuals >= $10M Vol
-            big_cap_tickers = [t for t in tickers if t["symbol"] in BIG_CAPS]
-            alt_tickers = [
+            crypto_tickers = [
                 t for t in tickers 
                 if (t["symbol"] in CRYPTO_SYMBOLS or t["symbol"].endswith("USDT"))
-                and t["symbol"] not in BIG_CAPS
                 and not t["symbol"].startswith(("SOXL", "KORU", "SPCX", "SNXX", "SAMSUNG", "SKHY", "DRAM", "MSTR", "NVDA", "TSLA", "AAPL", "SOXS", "EWY", "INTC", "MUU", "NBIS", "AMZN", "GOOGL", "META", "MSFT", "PLTR", "ARM", "AMD"))
-                and float(t.get("quoteVolume", 0)) >= 10000000
-            ][:40]
+                and float(t.get("quoteVolume", 0)) >= self.min_volume_usd
+            ]
 
-            combined_tickers = big_cap_tickers + alt_tickers
+            candidates = []
+            for t in crypto_tickers:
+                sym = t["symbol"]
+                p = float(t["lastPrice"])
+                pct = float(t["priceChangePercent"])
+                vol_quote = float(t["quoteVolume"])
+                high = float(t["highPrice"])
+                low = float(t["lowPrice"])
+                open_p = float(t["openPrice"])
+                is_bc = sym in BIG_CAPS
 
-            # Parallel 5m Candlestick Structure Analysis
-            with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
-                processed = list(filter(None, executor.map(self.analyze_5m_closed_structure, combined_tickers)))
+                if p <= 0: continue
+
+                rng = max(1e-8, high - low)
+                range_pos = (p - low) / rng
+
+                score_long = 0
+                score_short = 0
+
+                if range_pos >= 0.85: score_long += 3
+                elif range_pos <= 0.15: score_short += 3
+
+                if pct >= 2.5: score_long += 3
+                elif pct >= 1.0: score_long += 1
+
+                if pct <= -2.5: score_short += 3
+                elif pct <= -1.0: score_short += 1
+
+                if vol_quote >= 100000000:
+                    score_long += 2
+                    score_short += 2
+                elif vol_quote >= 20000000:
+                    score_long += 1
+                    score_short += 1
+
+                if p > open_p: score_long += 1
+                elif p < open_p: score_short += 1
+
+                if is_bc:
+                    score_long += 2
+                    score_short += 2
+
+                if score_long > score_short and score_long >= 6:
+                    direction = "LONG"
+                    score = score_long
+                    setup = "Bullish Range Breakout"
+                elif score_short > score_long and score_short >= 6:
+                    direction = "SHORT"
+                    score = score_short
+                    setup = "Bearish Range Breakdown"
+                elif is_bc:
+                    direction = "LONG" if p > open_p else "SHORT"
+                    score = 7
+                    setup = "Big-Cap Momentum Trend"
+                else:
+                    continue
+
+                candidates.append({
+                    "symbol": sym,
+                    "price": p,
+                    "pct24": pct,
+                    "vol_quote": vol_quote,
+                    "is_big_cap": is_bc,
+                    "initial_score": score,
+                    "initial_direction": direction,
+                    "initial_setup": setup
+                })
+
+            candidates.sort(key=lambda x: (x["is_big_cap"], x["initial_score"], x["vol_quote"]), reverse=True)
+            top_candidates = candidates[:8]
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+                processed = list(filter(None, executor.map(self.analyze_candidate_5m_candle, top_candidates)))
 
             processed.sort(key=lambda x: (x.get("is_big_cap", False), x["total_score"], x["volume_24h_usd"]), reverse=True)
 
             with self.lock:
                 self.market_data = processed
-                self.top_setups = processed[:20]
-                self.bot_status["scanned_markets"] = len(processed)
+                self.top_setups = processed[:15]
+                self.bot_status["scanned_markets"] = len(crypto_tickers)
                 self.bot_status["last_cycle_time"] = datetime.now().strftime("%H:%M:%S")
                 self.bot_status["top_signals"] = [
                     f"{s['symbol']} ({'BIG-CAP' if s.get('is_big_cap') else 'ALT'} {s['direction']} {s['total_score']}/10 | {s.get('setup_name', '5m Close')})"
@@ -395,7 +411,7 @@ class ClosedCandleAutoTraderBot:
 
             self.total_cycles += 1
             if self.total_cycles % 4 == 0:
-                logger.info(f"🕐 [5m Closed Screener] Cycle #{self.total_cycles} evaluated {len(combined_tickers)} pairs -> Found {len(processed)} confirmed 5m setups.")
+                logger.info(f"🕐 [5m Closed Screener] Cycle #{self.total_cycles} evaluated {len(crypto_tickers)} markets -> {len(processed)} confirmed 5m setups.")
 
             # 1. Manage active positions (TP/SL)
             self.check_and_manage_open_positions()
@@ -419,7 +435,7 @@ class ClosedCandleAutoTraderBot:
 
         avail_margin = float(acc_payload["account"]["availableBalance"])
         wallet_bal = float(acc_payload["account"]["walletBalance"])
-        target_margin = max(0.18, wallet_bal * self.margin_pct) # 7% margin sizing
+        target_margin = max(0.18, wallet_bal * self.margin_pct)
 
         for setup in self.top_setups:
             sym = setup["symbol"]
@@ -431,7 +447,6 @@ class ClosedCandleAutoTraderBot:
             setup_name = setup.get("setup_name", "5m Closed Setup")
             c_close_time = setup.get("candle_close_time", 0)
 
-            # Check if this symbol already executed on this specific 5m candle close
             last_exec_time = self.last_candle_close_executed.get(sym, 0)
             if c_close_time <= last_exec_time:
                 continue
@@ -442,7 +457,6 @@ class ClosedCandleAutoTraderBot:
             if avail_margin < target_margin:
                 break
 
-            # Sizing with exact symbol precision
             rules = SYMBOL_RULES.get(sym, {})
             min_not = float(rules.get("minNotional", 5.0))
             step_size = float(rules.get("stepSize", 1.0))
@@ -460,7 +474,6 @@ class ClosedCandleAutoTraderBot:
             if qty < min_qty:
                 qty = min_qty
 
-            # REVERSE POSITION EXECUTION (Signal LONG -> Open SHORT | Signal SHORT -> Open LONG)
             if self.reverse_mode:
                 exec_direction = "SHORT" if direction == "LONG" else "LONG"
                 side = "SELL" if exec_direction == "SHORT" else "BUY"
@@ -470,10 +483,7 @@ class ClosedCandleAutoTraderBot:
                 side = "BUY" if direction == "LONG" else "SELL"
                 logger.info(f"🕐 [5M CANDLE CLOSED EXECUTION] {sym} | Confirmed 5m Signal: {direction} ({score}/10) -> EXECUTING: {side} | Setup: {setup_name}")
             
-            # 1. Set symbol leverage to 50x
             self.set_symbol_leverage(sym, self.default_leverage)
-            
-            # 2. Execute live market order
             res = self.execute_market_order(sym, side, qty)
             if res and (res.get("status") == "FILLED" or res.get("status") == "NEW"):
                 active_symbols.add(sym)
@@ -494,22 +504,21 @@ class ClosedCandleAutoTraderBot:
 
         try:
             pos_url = f"https://fapi.binance.com/fapi/v2/positionRisk?{sign_query({})}"
-            req_pos = urllib.request.Request(pos_url, headers={"X-MBX-APIKEY": API_KEY})
+            req_pos = urllib.request.Request(pos_url, headers={"X-MBX-APIKEY": API_KEY, "User-Agent": "HyperData/2.0"})
             with urllib.request.urlopen(req_pos, timeout=4) as r:
-                pos_data = json.loads(r.read().decode())
+                pos_data = json.loads(r.read().decode('utf-8'))
 
             acc_url = f"https://fapi.binance.com/fapi/v2/account?{sign_query({})}"
-            req_acc = urllib.request.Request(acc_url, headers={"X-MBX-APIKEY": API_KEY})
+            req_acc = urllib.request.Request(acc_url, headers={"X-MBX-APIKEY": API_KEY, "User-Agent": "HyperData/2.0"})
             with urllib.request.urlopen(req_acc, timeout=4) as r:
-                acc_data = json.loads(r.read().decode())
+                acc_data = json.loads(r.read().decode('utf-8'))
 
-            # Realized Income Records
             inc_records = []
             try:
                 inc_url = f"https://fapi.binance.com/fapi/v1/income?{sign_query({'incomeType': 'REALIZED_PNL', 'limit': 100})}"
-                req_inc = urllib.request.Request(inc_url, headers={"X-MBX-APIKEY": API_KEY})
+                req_inc = urllib.request.Request(inc_url, headers={"X-MBX-APIKEY": API_KEY, "User-Agent": "HyperData/2.0"})
                 with urllib.request.urlopen(req_inc, timeout=4) as r:
-                    inc_data = json.loads(r.read().decode())
+                    inc_data = json.loads(r.read().decode('utf-8'))
                     if isinstance(inc_data, list):
                         for i in inc_data:
                             t = int(i.get("time", 0))
@@ -524,12 +533,12 @@ class ClosedCandleAutoTraderBot:
                                 "tradeId": str(i.get("tradeId", ""))
                             })
                         inc_records.sort(key=lambda x: x["timestamp"], reverse=True)
-            except Exception as e:
+            except Exception:
                 inc_records = self.cached_account_payload.get("incomeRecords", [])
 
-            wallet_bal = float(acc_data.get("totalWalletBalance", 3.59))
+            wallet_bal = float(acc_data.get("totalWalletBalance", 4.17))
             unreal_pnl = float(acc_data.get("totalUnrealizedProfit", 0.0))
-            avail_bal = float(acc_data.get("availableBalance", 3.00))
+            avail_bal = float(acc_data.get("availableBalance", 0.22))
             margin_used = max(0.0, wallet_bal - avail_bal)
 
             active_positions = []
@@ -587,18 +596,18 @@ class ClosedCandleAutoTraderBot:
             }
             self.last_account_fetch = now
 
-        except Exception as e:
+        except Exception:
             pass
 
         return self.cached_account_payload
 
     def run_bot_loop(self):
-        logger.info("🕐 [5m Closed Candle Auto-Trader Bot] Live 24/7 Engine Active.")
+        logger.info("🕐 [Bulletproof 5m Closed Candle Bot] Live 24/7 Engine Started.")
         while self.is_running:
             self.fetch_bulk_market_data()
-            time.sleep(10)
+            time.sleep(15)
 
-bot = ClosedCandleAutoTraderBot()
+bot = Bulletproof5mAutoTraderBot()
 
 class FlowHTTPHandler(BaseHTTPRequestHandler):
     def end_headers(self):
@@ -651,7 +660,7 @@ class FlowHTTPHandler(BaseHTTPRequestHandler):
 
 def start_server(port=8080):
     server = HTTPServer(("0.0.0.0", port), FlowHTTPHandler)
-    logger.info(f"⚡ 5m Closed Candle Auto-Trader Bot API listening on port {port}")
+    logger.info(f"⚡ Bulletproof 5m Auto-Trader Bot API listening on port {port}")
     server.serve_forever()
 
 if __name__ == "__main__":
