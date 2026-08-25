@@ -1,12 +1,11 @@
 """
-HyperData Flow Engine & Aggressive 200% Growth High-Velocity Crypto Scalper.
-Engine Parameters:
-- Top 25 Volatility & Momentum Leaders Scanner (1m/5m Velocity)
-- Aggressive Compounding Sizing: 15.0% Margin per Trade (~$0.50 USDT @ 50x = $25 Notional)
-- Max Concurrent Positions: 4 Active Scalps
-- High-Payoff Scalp Targets: TP1 (+1.20% = +60% ROI), TP2 (+2.50% = +125% ROI), TP3 (+4.00% = +200% ROI @ 50x)
-- Strict Stop Loss: -0.70% (-35% ROI @ 50x)
-- Fast Trailing Break-Even: Locks SL to Entry + 0.15% at +0.50% Profit (Risk-Free Exponential Runners)
+HyperData Flow Engine & Futures Basket Arbitrage Scalping System.
+Architecture & Strategy:
+- Statistical Futures Arbitrage Basket: 4 simultaneous positions across top momentum leaders & breakdown fades.
+- Sizing: 25.0% Margin per position (100% basket allocation @ 50x leverage).
+- Collective Basket Take-Profit: When total basket unrealized PnL reaches >= +30.0% ROI (or any key leg >= +30.0% ROI), CLOSE ALL POSITIONS IMMEDIATELY to lock in realized cash profit, then instantly START NEW BASKET!
+- Basket Risk Cutoff: -25.0% Basket Drawdown / -0.70% individual stop loss.
+- Continuous High-Frequency Scanning (Evaluates every 3-5 seconds).
 """
 import hmac
 import hashlib
@@ -55,7 +54,7 @@ def sign_query(params: dict) -> str:
     signature = hmac.new(SECRET_KEY.encode('utf-8'), query_str.encode('utf-8'), hashlib.sha256).hexdigest()
     return f"{query_str}&signature={signature}"
 
-class Aggressive200PctScalperBot:
+class FuturesBasketArbitrageBot:
     def __init__(self):
         self.lock = threading.Lock()
         self.market_data: List[Dict] = []
@@ -63,34 +62,31 @@ class Aggressive200PctScalperBot:
         self.is_running = True
         self.total_cycles = 0
         
-        # Aggressive Growth Parameters
-        self.min_score_threshold = 7   # Viable Momentum Surges (Score >= 7/10)
-        self.margin_pct = 0.15  # Exactly 15.0% margin per position (4 positions = 60% total margin, 40% reserve)         # 15.0% margin per position (~$0.45 - $0.50 margin @ 50x)
-        self.max_positions = 4  # Strictly 4 positions only         # Up to 4 high-velocity scalps
+        # Basket Arbitrage Parameters
+        self.max_positions = 4         # Exactly 4 positions in the arbitrage basket
+        self.margin_pct = 0.25         # Exactly 25.0% margin per position (100% basket allocation)
         self.default_leverage = 50
+        self.min_score_threshold = 7   # Viable Momentum / Arbitrage Surges
         
-        # Aggressive Scalp Payoff Targets (Up to +200% ROI)
-        self.tp1_ratio = 0.0120        # +1.20% TP1 (+60.0% ROI @ 50x)
-        self.tp2_ratio = 0.0250        # +2.50% TP2 (+125.0% ROI @ 50x)
-        self.tp3_ratio = 0.0400        # +4.00% TP3 (+200.0% ROI @ 50x!)
-        self.sl_ratio = 0.0070         # -0.70% Tight SL (-35.0% ROI @ 50x)
-        self.be_trigger_ratio = 0.0050 # +0.50% triggers Fee-Covered Break-Even Lock (+0.15%)
-        self.be_buffer_pct = 0.0015
+        # Basket PnL Rules
+        self.basket_tp_roi = 30.0      # +30.0% Unrealized PnL triggers CLOSE ALL & START NEW
+        self.basket_sl_roi = -25.0     # -25.0% Basket Drawdown cutoff
+        self.individual_sl_ratio = 0.0070 # -0.70% individual stop loss
         
         # State Tracking
         self.last_candle_close_executed: Dict[str, int] = {}
-        self.break_even_activated: Set[str] = set()
+        self.basket_round = 1
         
         # Account Cache
         self.last_account_fetch = 0
         self.cached_account_payload = {
             "status": "success",
             "account": {
-                "totalEquity": 3.39,
-                "walletBalance": 3.39,
-                "availableBalance": 3.39,
-                "marginUsed": 0.00,
-                "unrealizedPnl": 0.00,
+                "totalEquity": 1.24,
+                "walletBalance": 1.11,
+                "availableBalance": 0.36,
+                "marginUsed": 0.75,
+                "unrealizedPnl": 0.13,
                 "netRealizedPnl": -6.29,
                 "winRate": 67.6,
                 "winTrades": 23,
@@ -102,16 +98,16 @@ class Aggressive200PctScalperBot:
         }
 
         self.bot_status = {
-            "mode": "AGGRESSIVE 200% GROWTH SCALPING ENGINE ACTIVE",
-            "bot_state": "HUNTING_HIGH_VELOCITY_BREAKOUTS",
+            "mode": "FUTURES BASKET ARBITRAGE ENGINE ACTIVE (25% MARGIN / +30% CLOSE ALL)",
+            "bot_state": "RUNNING_ARBITRAGE_BASKET",
             "uptime_since": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "scanned_markets": 0,
-            "strategy": "Aggressive Momentum & Volatility Breakout Scalping (Up to +200% ROI)",
-            "filters": "Top 25 Volatility Leaders | Score >= 7/10 | TP1:+1.2% TP2:+2.5% TP3:+4.0% | BE @ +0.50%",
-            "margin_rule": "15% Margin per Trade (Max 4 Active Scalps @ 50x Leverage)",
+            "strategy": "4-Leg Basket Arbitrage (25% Margin per Leg | Close All at +30% ROI & Start New)",
+            "filters": "Top Volatility & Momentum Leaders | Basket TP: +30% ROI | Basket SL: -25% ROI",
+            "margin_rule": "Strict 25% Margin per Position (4 Positions = 100% Sized Basket @ 50x)",
             "max_positions": 4,
             "last_cycle_time": datetime.now().strftime("%H:%M:%S"),
-            "rate_limit_usage": "< 2% (Single Bulk Query)",
+            "rate_limit_usage": "< 2% (Lightweight)",
             "top_signals": [],
             "recent_actions": []
         }
@@ -137,13 +133,13 @@ class Aggressive200PctScalperBot:
             req = urllib.request.Request(url, headers={"X-MBX-APIKEY": API_KEY, "User-Agent": "HyperData/2.0"}, method="POST")
             with urllib.request.urlopen(req, timeout=5) as r:
                 res = json.loads(r.read().decode('utf-8'))
-                logger.info(f"🔥 [AGGRESSIVE SCALP EXECUTED] {symbol} {side} Qty: {quantity} -> Status: {res.get('status')}")
+                logger.info(f"🚀 [ARBITRAGE LEG EXECUTED] {symbol} {side} Qty: {quantity} -> Status: {res.get('status')}")
                 return res
         except Exception as e:
             logger.error(f"Execution error on {symbol}: {e}")
             return {"error": str(e)}
 
-    def execute_market_close(self, symbol: str, side: str, quantity: float, reason: str = "TP/SL"):
+    def close_single_position(self, symbol: str, side: str, quantity: float, reason: str = "TP/SL"):
         try:
             params = {
                 "symbol": symbol,
@@ -156,61 +152,83 @@ class Aggressive200PctScalperBot:
             req = urllib.request.Request(url, headers={"X-MBX-APIKEY": API_KEY, "User-Agent": "HyperData/2.0"}, method="POST")
             with urllib.request.urlopen(req, timeout=5) as r:
                 res = json.loads(r.read().decode('utf-8'))
-                logger.info(f"🎯 [SCALP CLOSED - {reason}] {symbol} {side} Qty: {quantity} -> Status: {res.get('status')}")
-                self.bot_status["recent_actions"].append(
-                    f"{datetime.now().strftime('%H:%M:%S')} - Closed {symbol} ({side}) [{reason}]"
-                )
-                if symbol in self.break_even_activated:
-                    self.break_even_activated.remove(symbol)
+                logger.info(f"✅ [CLOSED LEG - {reason}] {symbol} {side} Qty: {quantity} -> Status: {res.get('status')}")
                 return res
         except Exception as e:
             logger.error(f"Error closing {symbol}: {e}")
             return {"error": str(e)}
 
-    def check_and_manage_open_positions(self):
+    def close_all_positions(self, reason: str = "+30% BASKET TP - START NEW"):
         """
-        High-Velocity Exit Manager:
-        1. Break-Even Lock at +0.50% (Locks +0.15% Net Profit).
-        2. TP1 (+1.20% = +60% ROI), TP2 (+2.50% = +125% ROI), TP3 (+4.00% = +200% ROI).
-        3. Tight SL (-0.70%).
+        Flattens all active positions immediately to lock realized profit into cash!
+        """
+        logger.info(f"🎯 [CLOSE ALL TRIGGERED - {reason}] Flattening all active positions now!")
+        try:
+            pos_url = f"https://fapi.binance.com/fapi/v2/positionRisk?{sign_query({})}"
+            req_pos = urllib.request.Request(pos_url, headers={"X-MBX-APIKEY": API_KEY, "User-Agent": "HyperData/2.0"})
+            with urllib.request.urlopen(req_pos, timeout=4) as r:
+                pos_data = json.loads(r.read().decode('utf-8'))
+
+            active = [p for p in pos_data if float(p.get("positionAmt", 0)) != 0]
+            for p in active:
+                sym = p["symbol"]
+                amt = float(p["positionAmt"])
+                close_side = "SELL" if amt > 0 else "BUY"
+                qty = abs(amt)
+                self.close_single_position(sym, close_side, qty, reason=reason)
+
+            self.bot_status["recent_actions"].append(
+                f"{datetime.now().strftime('%H:%M:%S')} - FLATTENED ALL POSITIONS [{reason}] -> Starting Round #{self.basket_round + 1}!"
+            )
+            self.basket_round += 1
+            time.sleep(1)
+
+        except Exception as e:
+            logger.error(f"Error in close_all_positions: {e}")
+
+    def check_basket_performance(self):
+        """
+        Evaluates Collective Basket Unrealized PnL:
+        - If total basket ROI >= +30.0% (or any position >= +30.0%) -> CLOSE ALL & START NEW!
+        - If total basket ROI <= -25.0% -> CLOSE ALL to cut drawdown & re-enter fresh setups!
         """
         acc_payload = self.get_binance_account_payload()
         active_pos = acc_payload.get("activePositions", [])
         
+        if not active_pos or len(active_pos) == 0:
+            return
+
+        total_margin = sum([p["margin"] for p in active_pos])
+        total_unreal_pnl = sum([p["unrealizedPnl"] for p in active_pos])
+        basket_roi = (total_unreal_pnl / total_margin * 100) if total_margin > 0 else 0.0
+
+        # Check if any single leg has hit massive +30% profit or basket hit +30%
+        has_30pct_winner = any(p["unrealizedPnlPct"] >= self.basket_tp_roi for p in active_pos)
+
+        if basket_roi >= self.basket_tp_roi or has_30pct_winner:
+            reason = f"+{basket_roi:.1f}% BASKET ROI TP (+30% Target Reached)" if basket_roi >= self.basket_tp_roi else "+30% PROFIT LEG HIT"
+            logger.info(f"💰💰💰 [BASKET TARGET REACHED] Basket ROI: +{basket_roi:.1f}% (Unrealized PnL: ${total_unreal_pnl:+.4f}) -> EXECUTING CLOSE ALL & START NEW!")
+            self.close_all_positions(reason=reason)
+            return
+
+        elif basket_roi <= self.basket_sl_roi:
+            logger.info(f"🛑 [BASKET SL CUTOFF] Basket Drawdown: {basket_roi:.1f}% -> EXECUTING CLOSE ALL TO RESET!")
+            self.close_all_positions(reason=f"BASKET SL CUTOFF ({basket_roi:.1f}%)")
+            return
+
+        # Individual position stop loss check (-0.70% price move)
         for pos in active_pos:
             sym = pos["symbol"]
             entry = pos["entryPrice"]
             mark = pos["markPrice"]
             is_long = pos["direction"] == "LONG"
             size = pos["size"]
-            tp1 = pos["tp1"]
-            initial_sl = pos["stopLoss"]
+            pnl_pct = pos["unrealizedPnlPct"]
 
-            gain_ratio = (mark - entry) / entry if is_long else (entry - mark) / entry
-
-            # 1. Break-Even Lock Activation (+0.50% reached)
-            if gain_ratio >= self.be_trigger_ratio and sym not in self.break_even_activated:
-                self.break_even_activated.add(sym)
-                logger.info(f"🔒 [BE LOCKED] {sym} reached +{gain_ratio*100:.2f}% profit! SL moved to Entry + 0.15% (Risk-Free Runner).")
-                self.bot_status["recent_actions"].append(
-                    f"{datetime.now().strftime('%H:%M:%S')} - BE Locked on {sym} (+{gain_ratio*100:.2f}%)"
-                )
-
-            effective_sl = (entry * (1.0 + self.be_buffer_pct) if is_long else entry * (1.0 - self.be_buffer_pct)) if (sym in self.break_even_activated) else initial_sl
-
-            hit_tp = (is_long and mark >= tp1) or (not is_long and mark <= tp1)
-            hit_sl = (is_long and mark <= effective_sl) or (not is_long and mark >= effective_sl)
-
-            if hit_tp:
+            if pnl_pct <= -35.0: # Cut bad individual leg
                 close_side = "SELL" if is_long else "BUY"
-                logger.info(f"💰 [TP HIT] {sym} Mark: ${mark} reached TP (+{gain_ratio*100:.2f}% / +{gain_ratio*100*50:.1f}% ROI)!")
-                self.execute_market_close(sym, close_side, size, reason=f"TP (+{gain_ratio*100:.2f}% / +{gain_ratio*100*50:.1f}% ROI)")
-
-            elif hit_sl:
-                close_side = "SELL" if is_long else "BUY"
-                exit_type = "BE EXIT (+7.5% Net ROI)" if (sym in self.break_even_activated) else "STOP LOSS HIT"
-                logger.info(f"🛑 [{exit_type}] {sym} Mark: ${mark} touched SL ${effective_sl:.4f}!")
-                self.execute_market_close(sym, close_side, size, reason=exit_type)
+                logger.info(f"🛑 [INDIVIDUAL LEG SL] {sym} PnL: {pnl_pct:.1f}% -> Closing leg.")
+                self.close_single_position(sym, close_side, size, reason=f"SL ({pnl_pct:.1f}%)")
 
     def fetch_bulk_market_data(self):
         """
@@ -228,10 +246,9 @@ class Aggressive200PctScalperBot:
                 if (t["symbol"] in CRYPTO_SYMBOLS or t["symbol"].endswith("USDT"))
                 and t["symbol"] not in excluded
                 and not t["symbol"].startswith(("SOXL", "KORU", "SPCX", "SNXX", "SAMSUNG", "SKHY", "DRAM", "MSTR", "NVDA", "TSLA", "AAPL", "SOXS", "EWY", "INTC", "MUU", "NBIS", "AMZN", "GOOGL", "META", "MSFT", "PLTR", "ARM", "AMD"))
-                and float(t.get("quoteVolume", 0)) >= 20000000
+                and float(t.get("quoteVolume", 0)) >= 15000000
             ]
 
-            # Rank by Momentum & Volatility Volume
             valid_tickers.sort(key=lambda x: abs(float(x.get("priceChangePercent", 0))) * (float(x.get("quoteVolume", 0)) ** 0.5), reverse=True)
             top_active = valid_tickers[:25]
 
@@ -267,18 +284,18 @@ class Aggressive200PctScalperBot:
                 if score_long > score_short and score_long >= self.min_score_threshold:
                     direction = "LONG"
                     score = min(10, score_long)
-                    setup = "High-Velocity Bullish Breakout Scalp"
+                    setup = "Arbitrage Momentum Breakout"
                 elif score_short > score_long and score_short >= self.min_score_threshold:
                     direction = "SHORT"
                     score = min(10, score_short)
-                    setup = "High-Velocity Bearish Breakdown Scalp"
+                    setup = "Arbitrage Breakdown Fade"
                 else:
                     continue
 
-                tp1 = round(p * (1.0 + self.tp1_ratio) if direction == "LONG" else p * (1.0 - self.tp1_ratio), 5 if p < 0.1 else 4)
-                tp2 = round(p * (1.0 + self.tp2_ratio) if direction == "LONG" else p * (1.0 - self.tp2_ratio), 5 if p < 0.1 else 4)
-                tp3 = round(p * (1.0 + self.tp3_ratio) if direction == "LONG" else p * (1.0 - self.tp3_ratio), 5 if p < 0.1 else 4)
-                sl = round(p * (1.0 - self.sl_ratio) if direction == "LONG" else p * (1.0 + self.sl_ratio), 5 if p < 0.1 else 4)
+                tp1 = round(p * 1.012 if direction == "LONG" else p * 0.988, 5 if p < 0.1 else 4)
+                tp2 = round(p * 1.025 if direction == "LONG" else p * 0.975, 5 if p < 0.1 else 4)
+                tp3 = round(p * 1.040 if direction == "LONG" else p * 0.960, 5 if p < 0.1 else 4)
+                sl = round(p * (1.0 - self.individual_sl_ratio) if direction == "LONG" else p * (1.0 + self.individual_sl_ratio), 5 if p < 0.1 else 4)
 
                 cvd_delta = round(pct * 15 + (25 if direction == "LONG" else -25), 1)
 
@@ -317,18 +334,18 @@ class Aggressive200PctScalperBot:
                 self.bot_status["scanned_markets"] = len(top_active)
                 self.bot_status["last_cycle_time"] = datetime.now().strftime("%H:%M:%S")
                 self.bot_status["top_signals"] = [
-                    f"{s['symbol']} ({s['direction']} {s['total_score']}/10 24h:{s['price_change_24h']:+.1f}% | TP3:+200% ROI)"
+                    f"{s['symbol']} ({s['direction']} {s['total_score']}/10 24h:{s['price_change_24h']:+.1f}% | Basket 25% Margin)"
                     for s in self.top_setups[:5]
                 ]
 
             self.total_cycles += 1
             if self.total_cycles % 6 == 0:
-                logger.info(f"🔥 [Aggressive Scalp Loop] Cycle #{self.total_cycles} evaluated {len(top_active)} momentum pairs -> {len(processed)} active breakouts.")
+                logger.info(f"🏛️ [Basket Arbitrage Loop] Cycle #{self.total_cycles} evaluated {len(top_active)} pairs -> {len(processed)} active setups.")
 
-            # 1. Manage active positions (TP/SL & Break-Even Trailing)
-            self.check_and_manage_open_positions()
+            # 1. Evaluate Basket Performance & Close All if +30% reached
+            self.check_basket_performance()
 
-            # 2. Auto-Execute on confirmed high-velocity setups
+            # 2. Open new legs for the basket if slots are available (25% margin per leg)
             self.evaluate_auto_entries()
 
         except Exception as e:
@@ -336,18 +353,20 @@ class Aggressive200PctScalperBot:
 
     def evaluate_auto_entries(self):
         """
-        Executes Live Position on High-Velocity Breakout Setups (Max 4 Positions, 15% Margin)
+        Builds the 4-leg Arbitrage Basket (25% Margin per leg)
         """
         acc_payload = self.get_binance_account_payload()
         active_pos = acc_payload.get("activePositions", [])
         active_symbols = set([p["symbol"] for p in active_pos])
         
+        # Max 4 concurrent basket positions
         if len(active_symbols) >= self.max_positions:
             return
 
         avail_margin = float(acc_payload["account"]["availableBalance"])
         wallet_bal = float(acc_payload["account"]["walletBalance"])
-        # Exactly 15% of wallet balance per position (e.g. $0.33 on $2.20, $0.50 on $3.33)
+        
+        # Exactly 25% of wallet balance per position (e.g. $0.30 on $1.20 wallet)
         target_margin = max(0.12, round(wallet_bal * self.margin_pct, 3))
 
         for setup in self.top_setups:
@@ -381,7 +400,7 @@ class Aggressive200PctScalperBot:
                 qty = min_qty
 
             side = "BUY" if direction == "LONG" else "SELL"
-            logger.info(f"🔥 [AGGRESSIVE ENTRY] {sym} | Signal: {direction} ({score}/10) | Exec: {side} | Target: +200% ROI | Setup: {setup_name}")
+            logger.info(f"🏛️ [ARBITRAGE LEG ENTRY] {sym} | Signal: {direction} ({score}/10) | Exec: {side} | Margin: 25% (${target_margin}) | Setup: {setup_name}")
             
             self.set_symbol_leverage(sym, self.default_leverage)
             res = self.execute_market_order(sym, side, qty)
@@ -389,7 +408,7 @@ class Aggressive200PctScalperBot:
                 active_symbols.add(sym)
                 avail_margin -= target_margin
                 self.bot_status["recent_actions"].append(
-                    f"{datetime.now().strftime('%H:%M:%S')} - Opened Aggressive {direction} {sym} (TP3:+200% ROI, {self.default_leverage}x)"
+                    f"{datetime.now().strftime('%H:%M:%S')} - Opened Arbitrage Leg {direction} {sym} (25% Margin, {self.default_leverage}x)"
                 )
                 time.sleep(1)
 
@@ -398,7 +417,7 @@ class Aggressive200PctScalperBot:
 
     def get_binance_account_payload(self) -> dict:
         now = time.time()
-        if now - self.last_account_fetch < 10.0:
+        if now - self.last_account_fetch < 1.5:
             return self.cached_account_payload
 
         try:
@@ -435,9 +454,9 @@ class Aggressive200PctScalperBot:
             except Exception:
                 inc_records = self.cached_account_payload.get("incomeRecords", [])
 
-            wallet_bal = float(acc_data.get("totalWalletBalance", 3.39))
-            unreal_pnl = float(acc_data.get("totalUnrealizedProfit", 0.0))
-            avail_bal = float(acc_data.get("availableBalance", 3.39))
+            wallet_bal = float(acc_data.get("totalWalletBalance", 1.11))
+            unreal_pnl = float(acc_data.get("totalUnrealizedProfit", 0.13))
+            avail_bal = float(acc_data.get("availableBalance", 0.36))
             margin_used = max(0.0, wallet_bal - avail_bal)
 
             active_positions = []
@@ -464,10 +483,10 @@ class Aggressive200PctScalperBot:
                             "unrealizedPnl": round(pnl, 4),
                             "unrealizedPnlPct": round(pnl_pct, 2),
                             "liquidationPrice": float(p.get("liquidationPrice", 0)),
-                            "tp1": round(entry * (1.0 + self.tp1_ratio) if is_long else entry * (1.0 - self.tp1_ratio), 4 if entry >= 1 else 6),
-                            "tp2": round(entry * (1.0 + self.tp2_ratio) if is_long else entry * (1.0 - self.tp2_ratio), 4 if entry >= 1 else 6),
-                            "tp3": round(entry * (1.0 + self.tp3_ratio) if is_long else entry * (1.0 - self.tp3_ratio), 4 if entry >= 1 else 6),
-                            "stopLoss": round(entry * (1.0 - self.sl_ratio) if is_long else entry * (1.0 + self.sl_ratio), 4 if entry >= 1 else 6),
+                            "tp1": round(entry * 1.012 if is_long else entry * 0.988, 4 if entry >= 1 else 6),
+                            "tp2": round(entry * 1.025 if is_long else entry * 0.975, 4 if entry >= 1 else 6),
+                            "tp3": round(entry * 1.040 if is_long else entry * 0.960, 4 if entry >= 1 else 6),
+                            "stopLoss": round(entry * (1.0 - self.individual_sl_ratio) if is_long else entry * (1.0 + self.individual_sl_ratio), 4 if entry >= 1 else 6),
                         })
 
             net_pnl = sum([r["income"] for r in inc_records]) if inc_records else -6.29
@@ -501,12 +520,12 @@ class Aggressive200PctScalperBot:
         return self.cached_account_payload
 
     def run_bot_loop(self):
-        logger.info("🔥 [Aggressive 200% Scalping Engine] Live Execution Active.")
+        logger.info("🏛️ [Futures Basket Arbitrage Engine] Live Execution Active.")
         while self.is_running:
             self.fetch_bulk_market_data()
-            time.sleep(6)
+            time.sleep(4)
 
-bot = Aggressive200PctScalperBot()
+bot = FuturesBasketArbitrageBot()
 
 class FlowHTTPHandler(BaseHTTPRequestHandler):
     def end_headers(self):
@@ -562,7 +581,7 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
 
 def start_server(port=8080):
     server = ThreadedHTTPServer(("0.0.0.0", port), FlowHTTPHandler)
-    logger.info(f"⚡ Aggressive 200% Scalp Bot API listening on port {port}")
+    logger.info(f"⚡ Futures Basket Arbitrage Bot API listening on port {port}")
     server.serve_forever()
 
 if __name__ == "__main__":
