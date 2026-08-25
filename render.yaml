@@ -1,0 +1,16 @@
+﻿services:
+  - type: web
+    name: freqtrade-flow-server
+    runtime: python
+    region: singapore
+    plan: free
+    buildCommand: pip install -r flow_engine/requirements.txt
+    startCommand: python flow_engine/flow_server.py
+    envVars:
+      - key: BINANCE_API_KEY
+        sync: false
+      - key: BINANCE_SECRET_KEY
+        sync: false
+      - key: PORT
+        value: "10000"
+    healthCheckPath: /health

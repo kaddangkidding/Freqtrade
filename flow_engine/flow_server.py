@@ -26,8 +26,9 @@ import socketserver
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("flow_engine")
 
-API_KEY = os.environ.get("BINANCE_API_KEY", "SijchDXpN3dpJA5lYiCBQOgMC2ijnNgcR0UdVgncZYNeHP7RdBgMaj719I8y5WnY")
-SECRET_KEY = os.environ.get("BINANCE_SECRET_KEY", "zMQrvKFOV1CDGuGhx0kevzxhuCFgP0aDJ53W396C1M5BfIaoUEXYGGIziYp9qQZw")
+API_KEY = os.environ.get("BINANCE_API_KEY", "")
+SECRET_KEY = os.environ.get("BINANCE_SECRET_KEY", "")
+
 
 # Load exchange precision rules
 rules_path = os.path.join(os.path.dirname(__file__), "symbol_rules.json")
@@ -567,9 +568,17 @@ class FlowHTTPHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(status).encode())
             return
 
+        if path == "/health":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok", "uptime": bot.bot_status.get("uptime_since")}).encode())
+            return
+
         self.send_response(404)
         self.end_headers()
         self.wfile.write(b'{"error": "Not Found"}')
+
 
     def log_message(self, format, *args):
         pass
@@ -585,4 +594,6 @@ def start_server(port=8080):
 if __name__ == "__main__":
     t = threading.Thread(target=bot.run_bot_loop, daemon=True)
     t.start()
-    start_server(8080)
+    port = int(os.environ.get("PORT", 8080))
+    start_server(port)
+
