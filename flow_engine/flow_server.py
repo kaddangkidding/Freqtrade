@@ -65,8 +65,8 @@ class FuturesBasketArbitrageBot:
         
         # Execution Mode (Live Trading with Maximum Concurrency)
         self.paper_mode = False
-        self.max_positions = 20        # Open as many positions as possible across valid setups
-        self.margin_pct = 0.05         # Dynamic multi-position allocation
+        self.max_positions = 5         # Opens positions as long as 30% margin is available
+        self.margin_pct = 0.30         # STRICT 30% of Wallet Balance per position
         self.default_leverage = 50
         self.min_score_threshold = 7   # Viable Momentum / Arbitrage Surges
         
@@ -105,15 +105,15 @@ class FuturesBasketArbitrageBot:
         self.compound_state = self.load_compound_state()
         
         self.bot_status = {
-            "mode": "MULTI-POSITION CONTRARIAN BASKET ARBITRAGE ACTIVE",
-            "bot_state": "RUNNING_MAX_CONCURRENCY",
+            "mode": "30% MARGIN CONTRARIAN BASKET ARBITRAGE ACTIVE",
+            "bot_state": "RUNNING_30PCT_MARGIN",
             "paper_mode": False,
             "uptime_since": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "scanned_markets": 0,
-            "strategy": "Max-Concurrency Contrarian Basket (Signal BUY ➔ Open SHORT | Signal SELL ➔ Open LONG | +10% TP | -25% SL)",
+            "strategy": "Contrarian Basket (30% Margin per Leg | Signal BUY ➔ Open SHORT | Signal SELL ➔ Open LONG | +10% TP | -25% SL)",
             "filters": "Top Volatility & Momentum Leaders | 200% Profit Compound Engine",
-            "margin_rule": "Dynamic Sizing (Up to 20 Positions Max Concurrency @ 50x)",
-            "max_positions": 20,
+            "margin_rule": "Strict 30% Wallet Balance Margin per Position @ 50x",
+            "max_positions": 5,
             "last_cycle_time": datetime.now().strftime("%H:%M:%S"),
             "rate_limit_usage": "< 2% (Lightweight)",
             "compound_info": {
@@ -533,9 +533,8 @@ class FuturesBasketArbitrageBot:
         wallet_bal = float(acc_payload["account"]["walletBalance"])
         avail_margin = float(acc_payload["account"]["availableBalance"])
         
-        # Max concurrency: open as many positions as available margin allows (up to self.max_positions = 20)
-        remaining_slots = max(1, self.max_positions - len(active_symbols))
-        target_margin = max(0.10, min(round(wallet_bal * 0.10, 3), round(avail_margin * 0.90 / remaining_slots, 3)))
+        # STRICT RULE: 30% of Wallet Balance Margin per Position (e.g. $0.33 on $1.11 wallet)
+        target_margin = max(0.12, round(wallet_bal * self.margin_pct, 3))
 
         # 1. REVERSE OPEN POSITION: Flip active positions if a strong opposite contrarian signal triggers
         for pos in active_pos:
@@ -578,11 +577,11 @@ class FuturesBasketArbitrageBot:
                         res = self.execute_market_order(sym, open_side, qty)
                         if res and (res.get("status") == "FILLED" or res.get("status") == "NEW"):
                             self.bot_status["recent_actions"].append(
-                                f"{datetime.now().strftime('%H:%M:%S')} - Flipped {sym} to Opposite {target_dir} (Signal {sig_dir}) ({self.default_leverage}x)"
+                                f"{datetime.now().strftime('%H:%M:%S')} - Flipped {sym} to Opposite {target_dir} (Signal {sig_dir}) (30% Margin, {self.default_leverage}x)"
                             )
                         break
 
-        # Max 20 concurrent basket positions
+        # Max positions as long as 30% margin is available
         if len(active_symbols) >= self.max_positions:
             return
 
@@ -604,7 +603,8 @@ class FuturesBasketArbitrageBot:
                 logger.info(f"🛡️ [Anti-Knife Lockout] Skipping {sym} — Cooldown active for {remaining_min}m after prior close.")
                 continue
 
-            if avail_margin < 0.10:
+            # Require at least 30% margin balance to open new leg
+            if avail_margin < target_margin:
                 break
 
             rules = SYMBOL_RULES.get(sym, {})
@@ -630,7 +630,7 @@ class FuturesBasketArbitrageBot:
             target_side = "SELL" if direction == "LONG" else "BUY"
             target_direction = "SHORT" if direction == "LONG" else "LONG"
             
-            logger.info(f"🏛️ [OPPOSITE REVERSE ENTRY] {sym} | Signal: {direction} ({score}/10) | Executed Opposite: {target_side} ({target_direction}) | Margin: ${target_margin:.2f} | Setup: Inverted {setup_name}")
+            logger.info(f"🏛️ [OPPOSITE REVERSE ENTRY] {sym} | Signal: {direction} ({score}/10) | Executed Opposite: {target_side} ({target_direction}) | Margin: 30% (${target_margin:.2f}) | Setup: Inverted {setup_name}")
             
             self.set_symbol_leverage(sym, self.default_leverage)
             res = self.execute_market_order(sym, target_side, qty)
@@ -638,7 +638,7 @@ class FuturesBasketArbitrageBot:
                 active_symbols.add(sym)
                 avail_margin -= target_margin
                 self.bot_status["recent_actions"].append(
-                    f"{datetime.now().strftime('%H:%M:%S')} - Opened Opposite {target_direction} on {sym} (Signal was {direction}) (${target_margin:.2f} Margin, {self.default_leverage}x)"
+                    f"{datetime.now().strftime('%H:%M:%S')} - Opened Opposite {target_direction} on {sym} (Signal was {direction}) (30% Margin, {self.default_leverage}x)"
                 )
                 time.sleep(1)
 
