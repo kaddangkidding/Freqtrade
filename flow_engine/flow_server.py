@@ -267,8 +267,17 @@ class FuturesBasketArbitrageBot:
             self.close_all_positions(reason=reason)
             return
 
-        # Micro protections deleted to prevent fee churn. Trades run freely until +30% wallet balance target or basket cutoff.
-        return
+        # Individual Position Stop Loss at -25% ROI
+        for pos in active_pos:
+            sym = pos["symbol"]
+            is_long = pos["direction"] == "LONG"
+            size = pos["size"]
+            pnl_pct = pos["unrealizedPnlPct"]
+            
+            if pnl_pct <= -25.0:
+                close_side = "SELL" if is_long else "BUY"
+                logger.info(f"🛑 [INDIVIDUAL POSITION STOP LOSS -25%] {sym} PnL: {pnl_pct:.1f}% -> Cutting loss at -25%!")
+                self.close_single_position(sym, close_side, size, reason=f"SL ({pnl_pct:.1f}%)")
 
     def transfer_to_spot(self, amount: float) -> dict:
         """
