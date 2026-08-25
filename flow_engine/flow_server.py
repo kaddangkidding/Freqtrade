@@ -74,7 +74,8 @@ class FuturesBasketArbitrageBot:
         self.basket_sl_roi = -25.0     # -25.0% Basket Drawdown cutoff
         self.individual_sl_ratio = 0.0070 # -0.70% individual stop loss
         
-        # State Tracking
+        # State Tracking & Anti-Falling Knife Cooldown Lockout
+        self.symbol_cooldown: Dict[str, float] = {}
         self.last_candle_close_executed: Dict[str, int] = {}
         self.basket_round = 1
         
@@ -153,6 +154,10 @@ class FuturesBasketArbitrageBot:
             req = urllib.request.Request(url, headers={"X-MBX-APIKEY": API_KEY, "User-Agent": "HyperData/2.0"}, method="POST")
             with urllib.request.urlopen(req, timeout=4) as r:
                 return json.loads(r.read().decode('utf-8'))
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode('utf-8') if hasattr(e, 'read') else str(e)
+            logger.error(f"Binance set leverage error on {symbol}: {e} [{err_body}]")
+            return {"error": err_body}
         except Exception as e:
             return {"error": str(e)}
 
@@ -162,7 +167,7 @@ class FuturesBasketArbitrageBot:
                 "symbol": symbol,
                 "side": side,
                 "type": "MARKET",
-                "quantity": quantity
+                "quantity": str(quantity)
             }
             url = f"https://fapi.binance.com/fapi/v1/order?{sign_query(params)}"
             req = urllib.request.Request(url, headers={"X-MBX-APIKEY": API_KEY, "User-Agent": "HyperData/2.0"}, method="POST")
@@ -170,6 +175,10 @@ class FuturesBasketArbitrageBot:
                 res = json.loads(r.read().decode('utf-8'))
                 logger.info(f"🚀 [ARBITRAGE LEG EXECUTED] {symbol} {side} Qty: {quantity} -> Status: {res.get('status')}")
                 return res
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode('utf-8') if hasattr(e, 'read') else str(e)
+            logger.error(f"Binance execution error on {symbol}: {e} [{err_body}]")
+            return {"error": err_body}
         except Exception as e:
             logger.error(f"Execution error on {symbol}: {e}")
             return {"error": str(e)}
@@ -187,7 +196,10 @@ class FuturesBasketArbitrageBot:
             req = urllib.request.Request(url, headers={"X-MBX-APIKEY": API_KEY, "User-Agent": "HyperData/2.0"}, method="POST")
             with urllib.request.urlopen(req, timeout=5) as r:
                 res = json.loads(r.read().decode('utf-8'))
-                logger.info(f"✅ [CLOSED LEG - {reason}] {symbol} {side} Qty: {quantity} -> Status: {res.get('status')}")
+                # Anti-Knife Lockout: Cooldown 30 mins for SL / 10 mins for TP
+                cooldown_sec = 1800 if "SL" in reason else 600
+                self.symbol_cooldown[symbol] = time.time() + cooldown_sec
+                logger.info(f"✅ [CLOSED LEG - {reason}] {symbol} {side} Qty: {quantity} -> Status: {res.get('status')} (Anti-Knife Cooldown: {cooldown_sec//60}m)")
                 return res
         except Exception as e:
             logger.error(f"Error closing {symbol}: {e}")
@@ -389,12 +401,12 @@ class FuturesBasketArbitrageBot:
             with urllib.request.urlopen(req, timeout=6) as r:
                 tickers = json.loads(r.read().decode('utf-8'))
 
-            excluded = {"BTCUSDT", "ETHUSDT"}
+            excluded = {"BTCUSDT", "ETHUSDT", "CLUSDT", "OILUSDT", "GOLDUSDT", "US500USDT"}
             valid_tickers = [
                 t for t in tickers 
                 if (t["symbol"] in CRYPTO_SYMBOLS or t["symbol"].endswith("USDT"))
                 and t["symbol"] not in excluded
-                and not t["symbol"].startswith(("SOXL", "KORU", "SPCX", "SNXX", "SAMSUNG", "SKHY", "DRAM", "MSTR", "NVDA", "TSLA", "AAPL", "SOXS", "EWY", "INTC", "MUU", "NBIS", "AMZN", "GOOGL", "META", "MSFT", "PLTR", "ARM", "AMD"))
+                and not t["symbol"].startswith(("CLUSDT", "SOXL", "KORU", "SPCX", "SNXX", "SAMSUNG", "SKHY", "DRAM", "MSTR", "NVDA", "TSLA", "AAPL", "SOXS", "EWY", "INTC", "MUU", "NBIS", "AMZN", "GOOGL", "META", "MSFT", "PLTR", "ARM", "AMD"))
                 and float(t.get("quoteVolume", 0)) >= 15000000
             ]
 
@@ -527,14 +539,30 @@ class FuturesBasketArbitrageBot:
         # Exactly 25% of wallet balance per position (e.g. $0.30 on $1.20 wallet)
         target_margin = max(0.12, round(wallet_bal * self.margin_pct, 3))
 
+        now = time.time()
         for setup in self.top_setups:
             sym = setup["symbol"]
             score = setup["total_score"]
             direction = setup["direction"]
             p = setup["current_price"]
             setup_name = setup["setup_name"]
+            pct_24h = float(setup.get("price_change_24h", 0))
 
             if sym in active_symbols or direction == "NEUTRAL" or p <= 0:
+                continue
+
+            # Anti-Falling-Knife Guard 1: Cooldown Lockout (30 mins after SL / 10 mins after TP)
+            if now < self.symbol_cooldown.get(sym, 0):
+                remaining_min = int((self.symbol_cooldown[sym] - now) / 60) + 1
+                logger.info(f"🛡️ [Anti-Knife Lockout] Skipping {sym} — Cooldown active for {remaining_min}m after prior close.")
+                continue
+
+            # Anti-Falling-Knife Guard 2: Overextension Filter (Never short extreme -35% dump bottoms or long +45% blowoff tops)
+            if direction == "SHORT" and pct_24h <= -35.0:
+                logger.info(f"🛡️ [Anti-Knife Lockout] Skipping SHORT on {sym} ({pct_24h:+.1f}% 24h) — Extreme oversold dump bottom.")
+                continue
+            if direction == "LONG" and pct_24h >= 45.0:
+                logger.info(f"🛡️ [Anti-Knife Lockout] Skipping LONG on {sym} ({pct_24h:+.1f}% 24h) — Extreme overbought pump peak.")
                 continue
 
             if avail_margin < target_margin:
