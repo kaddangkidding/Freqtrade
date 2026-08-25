@@ -9,9 +9,9 @@ export const DEFAULT_INCOME_RECORDS: IncomeRecord[] = defaultRecords as IncomeRe
 export const DEFAULT_ACCOUNT: AccountPortfolio = {
   totalEquity: 3.39,
   walletBalance: 3.39,
-  availableBalance: 3.39,
-  marginUsed: 0.00,
-  unrealizedPnl: 0.00,
+  availableBalance: 2.17,
+  marginUsed: 1.22,
+  unrealizedPnl: -0.07,
   netRealizedPnl: 1.73,
   winRate: 55.0,
   winTrades: 55,
@@ -19,7 +19,59 @@ export const DEFAULT_ACCOUNT: AccountPortfolio = {
   totalTrades: 100,
 };
 
-export const DEFAULT_POSITIONS: ActivePosition[] = [];
+export const DEFAULT_POSITIONS: ActivePosition[] = [
+  {
+    symbol: 'SOLUSDT',
+    direction: 'LONG',
+    size: 0.11,
+    notional: 11.09,
+    margin: 0.22,
+    leverage: 50,
+    entryPrice: 101.01,
+    markPrice: 100.79,
+    unrealizedPnl: -0.0246,
+    unrealizedPnlPct: -11.1,
+    liquidationPrice: 99.00,
+    tp1: 102.22,
+    tp2: 103.54,
+    tp3: 105.05,
+    stopLoss: 100.30,
+  },
+  {
+    symbol: 'ENAUSDT',
+    direction: 'SHORT',
+    size: 162.0,
+    notional: 24.78,
+    margin: 0.50,
+    leverage: 50,
+    entryPrice: 0.15283,
+    markPrice: 0.15295,
+    unrealizedPnl: -0.0194,
+    unrealizedPnlPct: -3.9,
+    liquidationPrice: 0.15588,
+    tp1: 0.15100,
+    tp2: 0.14901,
+    tp3: 0.14672,
+    stopLoss: 0.15390,
+  },
+  {
+    symbol: 'TUTUSDT',
+    direction: 'SHORT',
+    size: 550.0,
+    notional: 24.87,
+    margin: 0.50,
+    leverage: 50,
+    entryPrice: 0.04516,
+    markPrice: 0.04522,
+    unrealizedPnl: -0.0313,
+    unrealizedPnlPct: -1.3,
+    liquidationPrice: 0.04606,
+    tp1: 0.04462,
+    tp2: 0.04403,
+    tp3: 0.04335,
+    stopLoss: 0.04548,
+  }
+];
 
 let cachedIncomeRecords: IncomeRecord[] = DEFAULT_INCOME_RECORDS;
 
