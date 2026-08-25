@@ -107,7 +107,28 @@ export async function fetchAccountData(forceIncome: boolean = false): Promise<{
 }> {
   const timestamp = Date.now();
 
-  // 1. PRIMARY: Direct Local Server (100% Unblocked & Real-Time Sync)
+  // 1. PRIMARY: Vercel Serverless Function (100% Real-Time Cloud Sync without CORS)
+  try {
+    const res = await fetch(`/api/account?t=${timestamp}`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(3000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.account) {
+        if (Array.isArray(data.incomeRecords) && data.incomeRecords.length > 0) {
+          cachedIncomeRecords = data.incomeRecords;
+        }
+        return {
+          account: data.account,
+          activePositions: Array.isArray(data.activePositions) ? data.activePositions : [],
+          incomeRecords: cachedIncomeRecords,
+        };
+      }
+    }
+  } catch (e) {}
+
+  // 2. SECONDARY: Direct Local VPS Server
   try {
     const res = await fetch(`http://localhost:8080/api/account?t=${timestamp}`, {
       cache: 'no-store',
@@ -254,10 +275,27 @@ let lastCoinsFetch = 0;
 let cachedCoinsData: FlowMarketData[] = [];
 
 export async function fetchAllMarketCoins(force: boolean = false): Promise<FlowMarketData[]> {
-  if (!force && cachedCoinsData.length > 0 && Date.now() - lastCoinsFetch < 25000) {
+  if (!force && cachedCoinsData.length > 0 && Date.now() - lastCoinsFetch < 15000) {
     return cachedCoinsData;
   }
 
+  // 1. Try Vercel Serverless Flow Matrix
+  try {
+    const res = await fetch(`/api/flow?t=${Date.now()}`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(3000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        lastCoinsFetch = Date.now();
+        cachedCoinsData = data;
+        return cachedCoinsData;
+      }
+    }
+  } catch (e) {}
+
+  // 2. Direct Binance Tickers
   try {
     const res = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?t=${Date.now()}`, {
       cache: 'no-store',
