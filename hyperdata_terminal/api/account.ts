@@ -1,7 +1,8 @@
 import { createHmac } from 'node:crypto';
 
-const API_KEY = process.env.BINANCE_API_KEY;
-const SECRET_KEY = process.env.BINANCE_SECRET_KEY;
+const API_KEY = (process.env.BINANCE_API_KEY || '').trim();
+const SECRET_KEY = (process.env.BINANCE_SECRET_KEY || '').trim();
+
 
 function signQuery(params: Record<string, any>): string {
   params['timestamp'] = Date.now();
@@ -41,7 +42,9 @@ export default async function handler(req: any, res: any) {
     ]);
 
     if (!accRes.ok || !posRes.ok) {
-      throw new Error(`Binance API Error: acc=${accRes.status}, pos=${posRes.status}`);
+      const accErr = !accRes.ok ? await accRes.text() : '';
+      const posErr = !posRes.ok ? await posRes.text() : '';
+      throw new Error(`Binance API Error: acc=${accRes.status} [${accErr}], pos=${posRes.status} [${posErr}]`);
     }
 
     const accData = await accRes.json();
