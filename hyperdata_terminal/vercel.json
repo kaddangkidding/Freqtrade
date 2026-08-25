@@ -1,4 +1,10 @@
 {
+  "regions": ["sin1"],
+  "functions": {
+    "api/**": {
+      "regions": ["sin1"]
+    }
+  },
   "rewrites": [
     {
       "source": "/api/:path*",
