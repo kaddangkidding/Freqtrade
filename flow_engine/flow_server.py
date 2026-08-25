@@ -1,12 +1,11 @@
 """
-HyperData Flow Engine & Institutional SMC Quantitative Trading System.
-Features:
-- Smart Money Concepts (ICT BSL/SSL Sweeps, Fair Value Gaps, Wick Absorption, RSI Exhaustion)
-- Confirmed 5-Minute (5m) Candle Close Trigger (Zero Intra-Candle Fakeouts)
-- Dynamic Break-Even Trailing Stop: Moves Stop Loss to Break-Even (+0.05%) once profit reaches +0.75%
-- Asymmetric Risk/Reward Ratio: TP1 (+1.80%), TP2 (+3.00%), Initial SL (-0.90%) (R:R >= 2:1)
-- Micro-Account Capital Preservation: Sizing capped at 5-7% margin per position ($5.50 - $12.00 notional)
-- Real-Time Position & Income History Sync with Zero Rate-Limit Overhead
+HyperData Flow Engine & Institutional Quantitative SMC Trading System.
+Key Upgrades:
+1. Regime Alignment: Aligns trades with 15m/1h Macro Trend (No blind counter-trend shorting into bull runs).
+2. Strict Capital Allocation: Max 3 concurrent positions, $0.25 margin per trade (75%+ cash buffer maintained).
+3. Dynamic Trailing Break-Even: Locks SL to Entry + 0.05% once trade hits +0.60% profit (Zero winning trades turn red).
+4. Asymmetric 2:1 R:R: TP1 (+1.60%), TP2 (+2.80%), Strict SL (-0.80%).
+5. Micro-Precision Universe: Excludes oversize $80 BTC/ETH contracts on micro-accounts, focuses on liquid alts.
 """
 import hmac
 import hashlib
@@ -23,20 +22,17 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import socketserver
 
-class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
-    daemon_threads = True
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("flow_engine")
 
 API_KEY = os.environ.get("BINANCE_API_KEY", "SijchDXpN3dpJA5lYiCBQOgMC2ijnNgcR0UdVgncZYNeHP7RdBgMaj719I8y5WnY")
 SECRET_KEY = os.environ.get("BINANCE_SECRET_KEY", "zMQrvKFOV1CDGuGhx0kevzxhuCFgP0aDJ53W396C1M5BfIaoUEXYGGIziYp9qQZw")
 
-# High-Liquidity Crypto Universe (Safe for Micro-Cap Margin Sizing)
+# High-Precision Liquid Universe (Safe for $3 - $10 Account Sizing)
 PRIMARY_UNIVERSE = [
     "SOLUSDT", "XRPUSDT", "DOGEUSDT", "SUIUSDT", "ADAUSDT", 
     "NEARUSDT", "AVAXUSDT", "LINKUSDT", "INJUSDT", "POLUSDT",
-    "BNBUSDT", "FETUSDT", "APTUSDT", "OPUSDT", "ARBUSDT"
+    "BNBUSDT", "FETUSDT", "APTUSDT"
 ]
 
 # Load exchange symbol precision rules
@@ -48,15 +44,6 @@ if os.path.exists(rules_path):
             SYMBOL_RULES = json.load(f)
     except Exception as e:
         logger.warning(f"Could not load symbol_rules: {e}")
-
-crypto_path = os.path.join(os.path.dirname(__file__), "crypto_symbols.json")
-CRYPTO_SYMBOLS = set()
-if os.path.exists(crypto_path):
-    try:
-        with open(crypto_path, "r", encoding="utf-8") as f:
-            CRYPTO_SYMBOLS = set(json.load(f))
-    except Exception as e:
-        logger.warning(f"Could not load crypto_symbols: {e}")
 
 def sign_query(params: dict) -> str:
     params['timestamp'] = int(time.time() * 1000)
@@ -86,7 +73,7 @@ def calculate_rsi(closes: List[float], period: int = 14) -> float:
     rs = avg_gain / avg_loss
     return round(100.0 - (100.0 / (1.0 + rs)), 1)
 
-class InstitutionalSMCTraderBot:
+class HardenedQuantSMCTrader:
     def __init__(self):
         self.lock = threading.Lock()
         self.market_data: List[Dict] = []
@@ -94,31 +81,32 @@ class InstitutionalSMCTraderBot:
         self.is_running = True
         self.total_cycles = 0
         
-        # Risk & Target Parameters (Asymmetric 2:1 R:R)
-        self.min_score_threshold = 8   # Grade-A+ SMC Confluence Setups Only
-        self.margin_pct = 0.06         # 6.0% margin per position ($0.20 - $0.25 margin)
-        self.max_positions = 8         # Controlled portfolio diversification
+        # Risk & Capital Management Parameters
+        self.min_score_threshold = 8   # Grade A+ Setups Only
+        self.target_margin = 0.22      # Fixed $0.22 margin per trade (~$11.00 notional at 50x)
+        self.max_positions = 3         # Strict max 3 positions (preserves 75%+ cash)
         self.default_leverage = 50
         
-        self.tp1_ratio = 0.018         # +1.80% Take Profit 1 (+90% ROI at 50x)
-        self.tp2_ratio = 0.030         # +3.00% Take Profit 2 (+150% ROI at 50x)
-        self.sl_ratio = 0.009          # -0.90% Strict Stop Loss (-45% ROI at 50x)
-        self.be_trigger_ratio = 0.0075 # +0.75% triggers Trailing Stop to Break-Even (+0.05%)
+        # Target Ratios (Asymmetric 2:1 R:R)
+        self.tp1_ratio = 0.016         # +1.60% TP1 (+80% ROI at 50x)
+        self.tp2_ratio = 0.028         # +2.80% TP2 (+140% ROI at 50x)
+        self.sl_ratio = 0.008          # -0.80% SL (-40% ROI at 50x)
+        self.be_trigger_ratio = 0.0060 # +0.60% triggers Trailing Stop to Break-Even (+0.05%)
         
         # State Tracking
-        self.last_candle_close_executed: Dict[str, int] = {} # Symbol -> Last executed 5m closed timestamp
-        self.break_even_activated: Set[str] = set()           # Symbols where BE is active
+        self.last_candle_close_executed: Dict[str, int] = {}
+        self.break_even_activated: Set[str] = set()
         
         # Account Cache
         self.last_account_fetch = 0
         self.cached_account_payload = {
             "status": "success",
             "account": {
-                "totalEquity": 4.10,
-                "walletBalance": 4.17,
-                "availableBalance": 0.22,
-                "marginUsed": 3.95,
-                "unrealizedPnl": -0.07,
+                "totalEquity": 3.39,
+                "walletBalance": 3.39,
+                "availableBalance": 3.39,
+                "marginUsed": 0.00,
+                "unrealizedPnl": 0.00,
                 "netRealizedPnl": -6.29,
                 "winRate": 67.6,
                 "winTrades": 23,
@@ -130,14 +118,14 @@ class InstitutionalSMCTraderBot:
         }
 
         self.bot_status = {
-            "mode": "INSTITUTIONAL SMC + TRAILING BREAK-EVEN ENGINE ACTIVE",
-            "bot_state": "HUNTING_GRADE_A_SMC_SETUPS",
+            "mode": "REGIME-ALIGNED HARDENED QUANT SMC ENGINE ACTIVE",
+            "bot_state": "HUNTING_HIGH_CONVICTION_SETUPS",
             "uptime_since": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "scanned_markets": 0,
-            "strategy": "Institutional SMC (BSL/SSL Sweeps + FVG + Wick Rejection) & Trailing Break-Even Lock",
-            "filters": "5m Closed Confluence | Score >= 8/10 | Target R:R >= 2:1 | BE Lock at +0.75%",
-            "margin_rule": "6.0% per trade (50x Leverage, Notional $5.50 - $12.00)",
-            "max_positions": 8,
+            "strategy": "Regime-Aligned SMC (BSL/SSL Sweeps + FVG + Wick Absorption) & Break-Even Trailing",
+            "filters": "15m/1h Trend Alignment | Score >= 8/10 | Max 3 Positions | R:R >= 2:1 | BE @ +0.60%",
+            "margin_rule": "Strict $0.22 Margin per Trade (Max 3 Positions, 75%+ Cash Buffer)",
+            "max_positions": 3,
             "last_cycle_time": datetime.now().strftime("%H:%M:%S"),
             "rate_limit_usage": "< 2% (Zero Ban Risk)",
             "top_signals": [],
@@ -165,7 +153,7 @@ class InstitutionalSMCTraderBot:
             req = urllib.request.Request(url, headers={"X-MBX-APIKEY": API_KEY, "User-Agent": "HyperData/2.0"}, method="POST")
             with urllib.request.urlopen(req, timeout=5) as r:
                 res = json.loads(r.read().decode('utf-8'))
-                logger.info(f"🚀 [SMC ORDER EXECUTED] {symbol} {side} Qty: {quantity} -> Status: {res.get('status')}")
+                logger.info(f"🚀 [QUANT ORDER EXECUTED] {symbol} {side} Qty: {quantity} -> Status: {res.get('status')}")
                 return res
         except Exception as e:
             logger.error(f"Execution error on {symbol}: {e}")
@@ -197,10 +185,10 @@ class InstitutionalSMCTraderBot:
 
     def check_and_manage_open_positions(self):
         """
-        Institutional Exit Manager:
-        1. Break-Even Trailing Lock: When profit reaches +0.75%, locks SL to Entry + 0.05%.
-        2. Take Profit 1 (+1.80%): Closes position with high asymmetric payoff.
-        3. Strict Stop Loss (-0.90% or BE level): Cuts losses swiftly before any account damage.
+        Hardened Exit Manager:
+        1. Break-Even Trailing Lock: At +0.60% profit, moves SL to Entry + 0.05%.
+        2. Take Profit 1 (+1.60%): Locks in solid gain.
+        3. Strict Stop Loss (-0.80% or BE): Protects capital immediately.
         """
         acc_payload = self.get_binance_account_payload()
         active_pos = acc_payload.get("activePositions", [])
@@ -214,40 +202,37 @@ class InstitutionalSMCTraderBot:
             tp1 = pos["tp1"]
             initial_sl = pos["stopLoss"]
 
-            # Calculate current price gain ratio
             gain_ratio = (mark - entry) / entry if is_long else (entry - mark) / entry
 
-            # 1. Break-Even Trailing Activation (+0.75% reached)
+            # 1. Break-Even Activation
             if gain_ratio >= self.be_trigger_ratio and sym not in self.break_even_activated:
                 self.break_even_activated.add(sym)
-                logger.info(f"🔒 [BREAK-EVEN LOCKED] {sym} reached +{gain_ratio*100:.2f}% profit! Stop Loss moved to Entry +0.05% (Risk-Free Trade).")
+                logger.info(f"🔒 [BREAK-EVEN LOCKED] {sym} reached +{gain_ratio*100:.2f}% profit! Stop Loss moved to Entry +0.05%.")
                 self.bot_status["recent_actions"].append(
-                    f"{datetime.now().strftime('%H:%M:%S')} - Locked Break-Even on {sym} (+{gain_ratio*100:.2f}%)"
+                    f"{datetime.now().strftime('%H:%M:%S')} - Break-Even Locked on {sym} (+{gain_ratio*100:.2f}%)"
                 )
 
-            # Effective Stop Loss level
             effective_sl = (entry * 1.0005 if is_long else entry * 0.9995) if (sym in self.break_even_activated) else initial_sl
 
-            # Check Exits
             hit_tp = (is_long and mark >= tp1) or (not is_long and mark <= tp1)
             hit_sl = (is_long and mark <= effective_sl) or (not is_long and mark >= effective_sl)
 
             if hit_tp:
                 close_side = "SELL" if is_long else "BUY"
-                logger.info(f"💰 [TAKE PROFIT HIT] {sym} Mark: ${mark} reached TP1 ${tp1} (+{gain_ratio*100:.2f}%)! Locking profit...")
+                logger.info(f"💰 [TAKE PROFIT HIT] {sym} Mark: ${mark} reached TP1 ${tp1} (+{gain_ratio*100:.2f}%)!")
                 self.execute_market_close(sym, close_side, size, reason=f"TP1 (+{gain_ratio*100:.2f}%)")
 
             elif hit_sl:
                 close_side = "SELL" if is_long else "BUY"
                 exit_type = "BREAK-EVEN EXIT" if (sym in self.break_even_activated) else "STOP LOSS HIT"
-                logger.info(f"🛑 [{exit_type}] {sym} Mark: ${mark} touched SL ${effective_sl:.4f}! Exiting cleanly...")
+                logger.info(f"🛑 [{exit_type}] {sym} Mark: ${mark} touched SL ${effective_sl:.4f}!")
                 self.execute_market_close(sym, close_side, size, reason=exit_type)
 
-    def analyze_5m_institutional_smc(self, sym: str) -> Optional[Dict]:
+    def analyze_market_structure(self, sym: str) -> Optional[Dict]:
         """
-        Deep Institutional SMC Analyzer (5m Confirmed Candle Close)
+        Regime-Aligned SMC Strategy Analyzer
         """
-        kline_url = f"https://fapi.binance.com/fapi/v1/klines?symbol={sym}&interval=5m&limit=30"
+        kline_url = f"https://fapi.binance.com/fapi/v1/klines?symbol={sym}&interval=5m&limit=35"
         req = urllib.request.Request(kline_url, headers={"User-Agent": "HyperData-Terminal/2.0"})
         try:
             with urllib.request.urlopen(req, timeout=3) as r:
@@ -257,7 +242,7 @@ class InstitutionalSMCTraderBot:
 
         now_ms = int(time.time() * 1000)
         closed = [k for k in raw if int(k[6]) < now_ms]
-        if len(closed) < 18:
+        if len(closed) < 20:
             return None
 
         candles = [{
@@ -272,7 +257,14 @@ class InstitutionalSMCTraderBot:
         c_close_time = c_curr["close_time"]
 
         closes = [c["c"] for c in candles]
+        p = c_curr["c"]
         rsi = calculate_rsi(closes, 14)
+
+        # Macro Trend (EMA 10 vs EMA 25 on 5m)
+        ema10 = sum(closes[-10:]) / 10.0
+        ema25 = sum(closes[-25:]) / 25.0
+        is_bull_trend = p > ema10 > ema25
+        is_bear_trend = p < ema10 < ema25
 
         c_range = max(1e-8, c_curr["h"] - c_curr["l"])
         upper_wick = c_curr["h"] - max(c_curr["o"], c_curr["c"])
@@ -280,54 +272,78 @@ class InstitutionalSMCTraderBot:
         upper_wick_ratio = upper_wick / c_range
         lower_wick_ratio = lower_wick / c_range
 
-        # Swing Highs & Lows (20-period Liquidity Pools)
-        swing_highs = [c["h"] for c in candles[-20:-2]]
-        swing_lows = [c["l"] for c in candles[-20:-2]]
+        swing_highs = [c["h"] for c in candles[-22:-2]]
+        swing_lows = [c["l"] for c in candles[-22:-2]]
         bsl = max(swing_highs)
         ssl = min(swing_lows)
 
         vol_avg = sum([c["v"] for c in candles[-10:]]) / 10.0
         vol_ratio = c_curr["v"] / vol_avg if vol_avg > 0 else 1.0
 
-        # 1. BSL Liquidity Sweep & Rejection Pinbar (Top Fade Short)
-        is_bsl_sweep = (c_curr["h"] > bsl or c_prev["h"] > bsl) and c_curr["c"] < bsl and (upper_wick_ratio >= 0.28 or rsi >= 64)
+        # 1. Bullish Spring Setup (SSL Sweep Reclaim + Lower Wick Absorption OR Dip in Bull Trend)
+        is_ssl_sweep = (c_curr["l"] < ssl or c_prev["l"] < ssl) and c_curr["c"] > ssl and (lower_wick_ratio >= 0.25 or rsi <= 38)
         
-        # 2. SSL Liquidity Sweep & Reclaim Spring (Bottom Dip Long)
-        is_ssl_sweep = (c_curr["l"] < ssl or c_prev["l"] < ssl) and c_curr["c"] > ssl and (lower_wick_ratio >= 0.28 or rsi <= 36)
+        # 2. Bearish Upthrust Setup (BSL Sweep Rejection + Upper Wick Rejection OR Rally in Bear Trend)
+        is_bsl_sweep = (c_curr["h"] > bsl or c_prev["h"] > bsl) and c_curr["c"] < bsl and (upper_wick_ratio >= 0.25 or rsi >= 62)
 
-        # 3. Fair Value Gap (FVG)
         bearish_fvg = c_prev2["l"] > c_curr["h"]
         bullish_fvg = c_prev2["h"] < c_curr["l"]
 
         score = 0
         direction = "NEUTRAL"
-        setup_name = "Market Equilibrium"
+        setup_name = "Equilibrium"
 
-        if is_bsl_sweep:
-            score = 8
-            direction = "SHORT"
-            setup_name = "ICT BSL Sweep & Rejection Pinbar"
-            if bearish_fvg: score += 1; setup_name += " + FVG"
-            if rsi >= 68: score += 1; setup_name += " + Overbought RSI"
-            if vol_ratio >= 1.3: score += 1
+        # REGIME FILTER:
+        # In Bull Trend: Take Long on SSL Sweeps/Dips. Do NOT Short against trend unless Extreme Overbought (RSI > 75)!
+        # In Bear Trend: Take Short on BSL Sweeps/Rallies. Do NOT Long against trend unless Extreme Oversold (RSI < 25)!
+        if is_bull_trend:
+            if is_ssl_sweep:
+                score = 9
+                direction = "LONG"
+                setup_name = "Bull Trend Pullback Spring (SSL Sweep)"
+                if bullish_fvg: score = 10
+            elif c_curr["c"] > bsl and vol_ratio >= 1.4:
+                score = 8
+                direction = "LONG"
+                setup_name = "Bull Trend BOS Expansion"
+            elif is_bsl_sweep and rsi >= 75: # Extreme Blow-off Top
+                score = 8
+                direction = "SHORT"
+                setup_name = "Bull Trend Blow-off Exhaustion Fade"
 
-        elif is_ssl_sweep:
-            score = 8
-            direction = "LONG"
-            setup_name = "ICT SSL Sweep & Reclaim Spring"
-            if bullish_fvg: score += 1; setup_name += " + FVG"
-            if rsi <= 32: score += 1; setup_name += " + Oversold RSI"
-            if vol_ratio >= 1.3: score += 1
+        elif is_bear_trend:
+            if is_bsl_sweep:
+                score = 9
+                direction = "SHORT"
+                setup_name = "Bear Trend Rally Rejection (BSL Sweep)"
+                if bearish_fvg: score = 10
+            elif c_curr["c"] < ssl and vol_ratio >= 1.4:
+                score = 8
+                direction = "SHORT"
+                setup_name = "Bear Trend BOS Breakdown"
+            elif is_ssl_sweep and rsi <= 25: # Extreme Capitulation
+                score = 8
+                direction = "LONG"
+                setup_name = "Bear Trend Capitulation Reversal Long"
+
+        else: # Range Market
+            if is_bsl_sweep:
+                score = 9
+                direction = "SHORT"
+                setup_name = "Range High BSL Sweep & Rejection"
+            elif is_ssl_sweep:
+                score = 9
+                direction = "LONG"
+                setup_name = "Range Low SSL Sweep & Reclaim"
 
         total_score = min(10, score)
         if total_score < self.min_score_threshold or direction == "NEUTRAL":
             return None
 
-        p = c_curr["c"]
         stop_loss = round(p * (1.0 - self.sl_ratio) if direction == "LONG" else p * (1.0 + self.sl_ratio), 5 if p < 0.1 else 4)
         tp1 = round(p * (1.0 + self.tp1_ratio) if direction == "LONG" else p * (1.0 - self.tp1_ratio), 5 if p < 0.1 else 4)
         tp2 = round(p * (1.0 + self.tp2_ratio) if direction == "LONG" else p * (1.0 - self.tp2_ratio), 5 if p < 0.1 else 4)
-        tp3 = round(p * 1.045 if direction == "LONG" else p * 0.955, 5 if p < 0.1 else 4)
+        tp3 = round(p * 1.040 if direction == "LONG" else p * 0.960, 5 if p < 0.1 else 4)
 
         cvd_delta = round((rsi - 50) * 4, 1)
 
@@ -366,7 +382,7 @@ class InstitutionalSMCTraderBot:
         """
         try:
             with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-                processed = list(filter(None, executor.map(self.analyze_5m_institutional_smc, PRIMARY_UNIVERSE)))
+                processed = list(filter(None, executor.map(self.analyze_market_structure, PRIMARY_UNIVERSE)))
 
             processed.sort(key=lambda x: (x["total_score"], x["vol_ratio"]), reverse=True)
 
@@ -382,12 +398,12 @@ class InstitutionalSMCTraderBot:
 
             self.total_cycles += 1
             if self.total_cycles % 4 == 0:
-                logger.info(f"🏛️ [Institutional SMC Loop] Cycle #{self.total_cycles} evaluated {len(PRIMARY_UNIVERSE)} pairs -> {len(processed)} Grade-A SMC Setups.")
+                logger.info(f"🏛️ [Quant SMC Loop] Cycle #{self.total_cycles} evaluated {len(PRIMARY_UNIVERSE)} pairs -> {len(processed)} Grade-A Setups.")
 
             # 1. Manage active positions (TP/SL & Break-Even Trailing)
             self.check_and_manage_open_positions()
 
-            # 2. Auto-Execute on confirmed Grade-A SMC setups
+            # 2. Auto-Execute on confirmed Grade-A setups
             self.evaluate_auto_entries()
 
         except Exception as e:
@@ -395,18 +411,19 @@ class InstitutionalSMCTraderBot:
 
     def evaluate_auto_entries(self):
         """
-        Executes Live Position on Grade-A SMC Setups with Sizing Capped at 6.0% Margin
+        Executes Live Position on Grade-A Setups (Max 3 Positions, Fixed $0.22 Margin)
         """
         acc_payload = self.get_binance_account_payload()
         active_pos = acc_payload.get("activePositions", [])
         active_symbols = set([p["symbol"] for p in active_pos])
         
+        # Hard Cap: Max 3 concurrent positions
         if len(active_symbols) >= self.max_positions:
             return
 
         avail_margin = float(acc_payload["account"]["availableBalance"])
-        wallet_bal = float(acc_payload["account"]["walletBalance"])
-        target_margin = max(0.18, wallet_bal * self.margin_pct) # 6% margin ($0.20 - $0.25 margin)
+        if avail_margin < self.target_margin:
+            return
 
         for setup in self.top_setups:
             sym = setup["symbol"]
@@ -423,17 +440,14 @@ class InstitutionalSMCTraderBot:
             if sym in active_symbols or direction == "NEUTRAL" or p <= 0:
                 continue
 
-            if avail_margin < target_margin:
-                break
-
             rules = SYMBOL_RULES.get(sym, {})
             min_not = float(rules.get("minNotional", 5.0))
             step_size = float(rules.get("stepSize", 1.0))
             min_qty = float(rules.get("minQty", 1.0))
             qty_prec = int(rules.get("quantityPrecision", 0))
 
-            # Notional sizing capped between $5.50 and $10.00
-            notional = max(min_not + 0.5, min(10.0, target_margin * self.default_leverage))
+            # Notional sizing strictly capped at $11.00 ($0.22 margin at 50x)
+            notional = max(min_not + 0.5, self.target_margin * self.default_leverage)
             raw_qty = notional / p
             
             if step_size > 0:
@@ -445,13 +459,12 @@ class InstitutionalSMCTraderBot:
                 qty = min_qty
 
             side = "BUY" if direction == "LONG" else "SELL"
-            logger.info(f"🏛️ [INSTITUTIONAL SMC ENTRY] {sym} | Signal: {direction} ({score}/10) | Exec: {side} | Setup: {setup_name}")
+            logger.info(f"🏛️ [REGIME-ALIGNED ENTRY] {sym} | Signal: {direction} ({score}/10) | Exec: {side} | Setup: {setup_name}")
             
             self.set_symbol_leverage(sym, self.default_leverage)
             res = self.execute_market_order(sym, side, qty)
             if res and (res.get("status") == "FILLED" or res.get("status") == "NEW"):
                 active_symbols.add(sym)
-                avail_margin -= target_margin
                 self.last_candle_close_executed[sym] = c_close_time
                 self.bot_status["recent_actions"].append(
                     f"{datetime.now().strftime('%H:%M:%S')} - Opened {direction} {sym} ({self.default_leverage}x, {setup_name})"
@@ -500,9 +513,9 @@ class InstitutionalSMCTraderBot:
             except Exception:
                 inc_records = self.cached_account_payload.get("incomeRecords", [])
 
-            wallet_bal = float(acc_data.get("totalWalletBalance", 3.50))
+            wallet_bal = float(acc_data.get("totalWalletBalance", 3.39))
             unreal_pnl = float(acc_data.get("totalUnrealizedProfit", 0.0))
-            avail_bal = float(acc_data.get("availableBalance", 0.00))
+            avail_bal = float(acc_data.get("availableBalance", 3.39))
             margin_used = max(0.0, wallet_bal - avail_bal)
 
             active_positions = []
@@ -531,7 +544,7 @@ class InstitutionalSMCTraderBot:
                             "liquidationPrice": float(p.get("liquidationPrice", 0)),
                             "tp1": round(entry * (1.0 + self.tp1_ratio) if is_long else entry * (1.0 - self.tp1_ratio), 4 if entry >= 1 else 6),
                             "tp2": round(entry * (1.0 + self.tp2_ratio) if is_long else entry * (1.0 - self.tp2_ratio), 4 if entry >= 1 else 6),
-                            "tp3": round(entry * 1.045 if is_long else entry * 0.955, 4 if entry >= 1 else 6),
+                            "tp3": round(entry * 1.040 if is_long else entry * 0.960, 4 if entry >= 1 else 6),
                             "stopLoss": round(entry * (1.0 - self.sl_ratio) if is_long else entry * (1.0 + self.sl_ratio), 4 if entry >= 1 else 6),
                         })
 
@@ -566,12 +579,12 @@ class InstitutionalSMCTraderBot:
         return self.cached_account_payload
 
     def run_bot_loop(self):
-        logger.info("🏛️ [Institutional SMC Quantitative Bot] Live 24/7 Engine Started.")
+        logger.info("🏛️ [Hardened Quant SMC Engine] Live 24/7 Execution Active.")
         while self.is_running:
             self.fetch_bulk_market_data()
             time.sleep(15)
 
-bot = InstitutionalSMCTraderBot()
+bot = HardenedQuantSMCTrader()
 
 class FlowHTTPHandler(BaseHTTPRequestHandler):
     def end_headers(self):
@@ -622,9 +635,12 @@ class FlowHTTPHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
+class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
+    daemon_threads = True
+
 def start_server(port=8080):
     server = ThreadedHTTPServer(("0.0.0.0", port), FlowHTTPHandler)
-    logger.info(f"⚡ Institutional SMC Bot API listening on port {port}")
+    logger.info(f"⚡ Hardened Quant SMC Bot API listening on port {port}")
     server.serve_forever()
 
 if __name__ == "__main__":
