@@ -147,7 +147,7 @@ export function App() {
 
   useEffect(() => {
     loadBaseAccount(true);
-    const accountPoll = setInterval(() => loadBaseAccount(false), 10000); // Refresh every 10 seconds
+    const accountPoll = setInterval(() => loadBaseAccount(false), 1500); // Refresh every 10 seconds
 
     // Speedometer: calculate ticks/sec every second
     const speedTimer = setInterval(() => {
@@ -161,7 +161,7 @@ export function App() {
 
     const connectWebSocket = () => {
       try {
-        const streamUrl = 'wss://fstream.binance.com/stream?streams=!miniTicker@arr/suiusdt@aggTrade/dogeusdt@aggTrade/solusdt@aggTrade/xrpusdt@aggTrade/portalusdt@aggTrade/grassusdt@aggTrade/1000ratsusdt@aggTrade/1000pepeusdt@aggTrade/neirousdt@aggTrade/storjusdt@aggTrade/chipusdt@aggTrade';
+        const streamUrl = 'wss://fstream.binance.com/stream?streams=!miniTicker@arr/!markPrice@arr@1s/solusdt@aggTrade/dogeusdt@aggTrade/xrpusdt@aggTrade/suiusdt@aggTrade/adausdt@aggTrade/nearusdt@aggTrade/injusdt@aggTrade/ongusdt@aggTrade/tutusdt@aggTrade/enausdt@aggTrade';
         ws = new WebSocket(streamUrl);
 
         ws.onmessage = (event) => {
@@ -177,6 +177,15 @@ export function App() {
                 priceMap.set(trade.s, p);
                 handlePriceUpdate(priceMap);
               }
+            }
+
+            // 1-Second Global Mark Price Stream (Real-Time Floating PnL & Position Sync)
+            if (raw.stream && (raw.stream.includes('markPrice') || raw.stream === '!markPrice@arr@1s') && Array.isArray(raw.data)) {
+              for (const t of raw.data) {
+                const p = parseFloat(t.p);
+                if (t.s && p) priceMap.set(t.s, p);
+              }
+              handlePriceUpdate(priceMap);
             }
 
             // Batch 300+ coin miniTicker
