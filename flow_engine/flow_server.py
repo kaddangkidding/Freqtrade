@@ -523,7 +523,7 @@ class FuturesBasketArbitrageBot:
         avail_margin = float(acc_payload["account"]["availableBalance"])
         target_margin = max(0.12, round(wallet_bal * self.margin_pct, 3))
 
-        # 1. REVERSE OPEN POSITION: Flip active positions if a strong opposite signal triggers
+        # 1. REVERSE OPEN POSITION: Flip active positions if a strong opposite contrarian signal triggers
         for pos in active_pos:
             sym = pos["symbol"]
             cur_dir = pos["direction"] # "LONG" or "SHORT"
@@ -532,13 +532,15 @@ class FuturesBasketArbitrageBot:
             for setup in self.top_setups:
                 if setup["symbol"] == sym and setup["total_score"] >= 8:
                     sig_dir = setup["direction"]
-                    # Opposite signal detected -> Reverse Position!
-                    if (cur_dir == "SHORT" and sig_dir == "LONG") or (cur_dir == "LONG" and sig_dir == "SHORT"):
-                        logger.info(f"🔄 [REVERSE POSITION FLIP] {sym} is currently {cur_dir}, but fresh signal is {sig_dir} ({setup['total_score']}/10)! Flipping position to {sig_dir}...")
+                    # INVERTED / OPPOSITE RULE: Signal LONG -> Target SHORT | Signal SHORT -> Target LONG
+                    target_dir = "SHORT" if sig_dir == "LONG" else "LONG"
+                    
+                    if cur_dir != target_dir:
+                        logger.info(f"🔄 [REVERSE OPPOSITE FLIP] {sym} is {cur_dir}, Signal is {sig_dir} -> Opening Opposite {target_dir} ({setup['total_score']}/10)...")
                         
                         # Step A: Close current position
                         close_side = "SELL" if cur_dir == "LONG" else "BUY"
-                        self.close_single_position(sym, close_side, amt, reason=f"REVERSE FLIP TO {sig_dir}")
+                        self.close_single_position(sym, close_side, amt, reason=f"OPPOSITE FLIP TO {target_dir}")
                         time.sleep(1)
                         
                         # Step B: Open reverse position in opposite direction
@@ -557,12 +559,12 @@ class FuturesBasketArbitrageBot:
                         if qty < min_qty:
                             qty = min_qty
                             
-                        open_side = "BUY" if sig_dir == "LONG" else "SELL"
+                        open_side = "BUY" if target_dir == "LONG" else "SELL"
                         self.set_symbol_leverage(sym, self.default_leverage)
                         res = self.execute_market_order(sym, open_side, qty)
                         if res and (res.get("status") == "FILLED" or res.get("status") == "NEW"):
                             self.bot_status["recent_actions"].append(
-                                f"{datetime.now().strftime('%H:%M:%S')} - Reverse Flipped {sym} from {cur_dir} to {sig_dir} (30% Margin, {self.default_leverage}x)"
+                                f"{datetime.now().strftime('%H:%M:%S')} - Flipped {sym} to Opposite {target_dir} (Signal {sig_dir}) (30% Margin, {self.default_leverage}x)"
                             )
                         break
 
@@ -588,14 +590,6 @@ class FuturesBasketArbitrageBot:
                 logger.info(f"🛡️ [Anti-Knife Lockout] Skipping {sym} — Cooldown active for {remaining_min}m after prior close.")
                 continue
 
-            # Anti-Falling-Knife Guard 2: Overextension Filter (Never short extreme -35% dump bottoms or long +45% blowoff tops)
-            if direction == "SHORT" and pct_24h <= -35.0:
-                logger.info(f"🛡️ [Anti-Knife Lockout] Skipping SHORT on {sym} ({pct_24h:+.1f}% 24h) — Extreme oversold dump bottom.")
-                continue
-            if direction == "LONG" and pct_24h >= 45.0:
-                logger.info(f"🛡️ [Anti-Knife Lockout] Skipping LONG on {sym} ({pct_24h:+.1f}% 24h) — Extreme overbought pump peak.")
-                continue
-
             if avail_margin < target_margin:
                 break
 
@@ -616,16 +610,21 @@ class FuturesBasketArbitrageBot:
             if qty < min_qty:
                 qty = min_qty
 
-            side = "BUY" if direction == "LONG" else "SELL"
-            logger.info(f"🏛️ [ARBITRAGE LEG ENTRY] {sym} | Signal: {direction} ({score}/10) | Exec: {side} | Margin: 30% (${target_margin}) | Setup: {setup_name}")
+            # REVERSE / OPPOSITE EXECUTION:
+            # If Signal == LONG (BUY) -> Open SHORT (SELL)
+            # If Signal == SHORT (SELL) -> Open LONG (BUY)
+            target_side = "SELL" if direction == "LONG" else "BUY"
+            target_direction = "SHORT" if direction == "LONG" else "LONG"
+            
+            logger.info(f"🏛️ [OPPOSITE REVERSE ENTRY] {sym} | Signal: {direction} ({score}/10) | Executed Opposite: {target_side} ({target_direction}) | Margin: 30% (${target_margin}) | Setup: Inverted {setup_name}")
             
             self.set_symbol_leverage(sym, self.default_leverage)
-            res = self.execute_market_order(sym, side, qty)
+            res = self.execute_market_order(sym, target_side, qty)
             if res and (res.get("status") == "FILLED" or res.get("status") == "NEW"):
                 active_symbols.add(sym)
                 avail_margin -= target_margin
                 self.bot_status["recent_actions"].append(
-                    f"{datetime.now().strftime('%H:%M:%S')} - Opened Arbitrage Leg {direction} {sym} (30% Margin, {self.default_leverage}x)"
+                    f"{datetime.now().strftime('%H:%M:%S')} - Opened Opposite {target_direction} on {sym} (Signal was {direction}) (30% Margin, {self.default_leverage}x)"
                 )
                 time.sleep(1)
 
