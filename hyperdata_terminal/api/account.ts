@@ -106,11 +106,15 @@ export default async function handler(req: any, res: any) {
     const losses = incomeRecords.filter((r: any) => r.income < 0).length;
     const winRate = (wins + losses) > 0 ? (wins / (wins + losses)) * 100 : 67.6;
 
+    const baseEquity = 2.52;
+    const currentEquity = Number((walletBal + unrealPnl).toFixed(2));
+    const currentProfitPct = Number((((currentEquity - baseEquity) / baseEquity) * 100).toFixed(1));
+
     return res.status(200).json({
       status: 'success',
       timestamp: Date.now(),
       account: {
-        totalEquity: Number((walletBal + unrealPnl).toFixed(2)),
+        totalEquity: currentEquity,
         walletBalance: Number(walletBal.toFixed(2)),
         availableBalance: Number(availBal.toFixed(2)),
         marginUsed: Number(marginUsed.toFixed(2)),
@@ -120,6 +124,13 @@ export default async function handler(req: any, res: any) {
         winTrades: wins,
         loseTrades: losses,
         totalTrades: incomeRecords.length,
+      },
+      compoundInfo: {
+        baseEquity: baseEquity,
+        targetEquity200Pct: Number((baseEquity * 3.0).toFixed(2)),
+        currentProfitPct: currentProfitPct,
+        compoundCycle: 1,
+        totalTransferredToSpot: 0.0
       },
       activePositions,
       incomeRecords

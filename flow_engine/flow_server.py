@@ -98,20 +98,54 @@ class FuturesBasketArbitrageBot:
             "incomeRecords": []
         }
 
+        # Compound & 200% Profit Transfer Rules
+        self.compound_state = self.load_compound_state()
+        
         self.bot_status = {
-            "mode": "FUTURES BASKET ARBITRAGE ENGINE ACTIVE (25% MARGIN / +30% CLOSE ALL)",
+            "mode": "FUTURES BASKET ARBITRAGE + 200% COMPOUND PROFIT TRANSFER ACTIVE",
             "bot_state": "RUNNING_ARBITRAGE_BASKET",
             "uptime_since": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "scanned_markets": 0,
-            "strategy": "4-Leg Basket Arbitrage (25% Margin per Leg | Close All at +30% ROI & Start New)",
-            "filters": "Top Volatility & Momentum Leaders | Basket TP: +30% ROI | Basket SL: -25% ROI",
+            "strategy": "4-Leg Basket Arbitrage (25% Margin | +30% ROI Basket TP | 200% Profit Spot Transfer)",
+            "filters": "Top Volatility & Momentum Leaders | 200% Profit Compound Engine",
             "margin_rule": "Strict 25% Margin per Position (4 Positions = 100% Sized Basket @ 50x)",
             "max_positions": 4,
             "last_cycle_time": datetime.now().strftime("%H:%M:%S"),
             "rate_limit_usage": "< 2% (Lightweight)",
+            "compound_info": {
+                "base_equity": self.compound_state.get("base_equity", 2.52),
+                "target_equity_200pct": round(self.compound_state.get("base_equity", 2.52) * 3.0, 2),
+                "compound_cycle": self.compound_state.get("compound_cycle", 1),
+                "total_transferred_to_spot": self.compound_state.get("total_transferred_to_spot", 0.0)
+            },
             "top_signals": [],
             "recent_actions": []
         }
+
+    def load_compound_state(self) -> dict:
+        state_file = os.path.join(os.path.dirname(__file__), "compound_state.json")
+        default_state = {
+            "base_equity": 2.52,
+            "target_profit_pct": 200.0,
+            "compound_cycle": 1,
+            "total_transferred_to_spot": 0.0,
+            "history": []
+        }
+        if os.path.exists(state_file):
+            try:
+                with open(state_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.warning(f"Could not load compound_state.json: {e}")
+        return default_state
+
+    def save_compound_state(self):
+        state_file = os.path.join(os.path.dirname(__file__), "compound_state.json")
+        try:
+            with open(state_file, "w", encoding="utf-8") as f:
+                json.dump(self.compound_state, f, indent=2)
+        except Exception as e:
+            logger.error(f"Error saving compound_state.json: {e}")
 
     def set_symbol_leverage(self, symbol: str, leverage: int = 50):
         try:
@@ -210,9 +244,9 @@ class FuturesBasketArbitrageBot:
             self.close_all_positions(reason=reason)
             return
 
-        elif basket_roi <= self.basket_sl_roi:
-            logger.info(f"🛑 [BASKET SL CUTOFF] Basket Drawdown: {basket_roi:.1f}% -> EXECUTING CLOSE ALL TO RESET!")
-            self.close_all_positions(reason=f"BASKET SL CUTOFF ({basket_roi:.1f}%)")
+        elif accumulated_basket_roi <= self.basket_sl_roi:
+            logger.info(f"🛑 [BASKET SL CUTOFF] Basket Drawdown: {accumulated_basket_roi:.1f}% -> EXECUTING CLOSE ALL TO RESET!")
+            self.close_all_positions(reason=f"BASKET SL CUTOFF ({accumulated_basket_roi:.1f}%)")
             return
 
         # Individual position stop loss check (-0.70% price move)
@@ -228,6 +262,117 @@ class FuturesBasketArbitrageBot:
                 close_side = "SELL" if is_long else "BUY"
                 logger.info(f"🛑 [INDIVIDUAL LEG SL] {sym} PnL: {pnl_pct:.1f}% -> Closing leg.")
                 self.close_single_position(sym, close_side, size, reason=f"SL ({pnl_pct:.1f}%)")
+
+    def transfer_to_spot(self, amount: float) -> dict:
+        """
+        Transfers USDT profit from USDT-M Futures wallet to Spot wallet.
+        """
+        amount = round(amount, 2)
+        if amount <= 0:
+            return {"error": "Invalid amount"}
+
+        logger.info(f"💎 [PROFIT TRANSFER INITIATED] Transferring {amount} USDT from Futures to Spot...")
+
+        # 1. Universal Transfer (UMFUTURE_MAIN = USDT-M Futures -> Spot)
+        try:
+            params = {
+                "type": "UMFUTURE_MAIN",
+                "asset": "USDT",
+                "amount": str(amount),
+                "timestamp": int(time.time() * 1000)
+            }
+            query_str = urllib.parse.urlencode(params)
+            sig = hmac.new(SECRET_KEY.encode('utf-8'), query_str.encode('utf-8'), hashlib.sha256).hexdigest()
+            url = f"https://api.binance.com/sapi/v1/asset/transfer?{query_str}&signature={sig}"
+            req = urllib.request.Request(url, headers={"X-MBX-APIKEY": API_KEY, "User-Agent": "HyperData/2.0"}, method="POST")
+            with urllib.request.urlopen(req, timeout=6) as r:
+                res = json.loads(r.read().decode('utf-8'))
+                logger.info(f"✅ [PROFIT SECURED TO SPOT] Transfer ID: {res.get('tranId')} -> {amount} USDT moved to Spot!")
+                return res
+        except Exception as e1:
+            logger.warning(f"Universal transfer attempt failed: {e1}, trying legacy futures transfer endpoint...")
+            try:
+                # 2. Fallback: Legacy Futures Transfer (type 2 = Futures to Spot)
+                params = {
+                    "asset": "USDT",
+                    "amount": str(amount),
+                    "type": "2",
+                    "timestamp": int(time.time() * 1000)
+                }
+                query_str = urllib.parse.urlencode(params)
+                sig = hmac.new(SECRET_KEY.encode('utf-8'), query_str.encode('utf-8'), hashlib.sha256).hexdigest()
+                url = f"https://api.binance.com/sapi/v1/futures/transfer?{query_str}&signature={sig}"
+                req = urllib.request.Request(url, headers={"X-MBX-APIKEY": API_KEY, "User-Agent": "HyperData/2.0"}, method="POST")
+                with urllib.request.urlopen(req, timeout=6) as r:
+                    res = json.loads(r.read().decode('utf-8'))
+                    logger.info(f"✅ [PROFIT SECURED TO SPOT (LEGACY)] Transfer ID: {res.get('tranId')} -> {amount} USDT moved to Spot!")
+                    return res
+            except Exception as e2:
+                logger.error(f"Failed to transfer profit to spot: {e2}")
+                return {"error": str(e2)}
+
+    def check_compound_growth(self):
+        """
+        Monitors wallet growth against base equity.
+        When balance reaches >= +200% profit (3.0x base equity):
+        1. Transfers 100% of base equity to Spot wallet (securing initial stake/profit).
+        2. Compounds with the remaining balance as the new base equity for the next round.
+        """
+        acc_payload = self.get_binance_account_payload()
+        wallet_bal = float(acc_payload["account"].get("walletBalance", 0))
+        avail_bal = float(acc_payload["account"].get("availableBalance", 0))
+        total_equity = float(acc_payload["account"].get("totalEquity", 0))
+
+        if self.compound_state.get("base_equity", 0) <= 0:
+            if wallet_bal > 0:
+                self.compound_state["base_equity"] = wallet_bal
+                self.save_compound_state()
+            return
+
+        base = self.compound_state["base_equity"]
+        profit_pct = ((total_equity - base) / base) * 100.0 if base > 0 else 0.0
+        target_equity = base * 3.0 # +200% profit = 3x starting capital
+
+        # Update live status compound metrics
+        self.bot_status["compound_info"] = {
+            "base_equity": round(base, 2),
+            "target_equity_200pct": round(target_equity, 2),
+            "current_equity": round(total_equity, 2),
+            "profit_progress_pct": round(profit_pct, 1),
+            "compound_cycle": self.compound_state.get("compound_cycle", 1),
+            "total_transferred_to_spot": round(self.compound_state.get("total_transferred_to_spot", 0.0), 2)
+        }
+
+        # Trigger when profit reaches >= +200% and enough available balance exists
+        if total_equity >= target_equity and avail_bal >= base:
+            transfer_amt = round(base, 2)
+            logger.info(f"🎉🎉🎉 [200% PROFIT TARGET REACHED!] Base: ${base:.2f} -> Current Equity: ${total_equity:.2f} (+{profit_pct:.1f}%). Transferring 100% (${transfer_amt:.2f}) to Spot...")
+
+            res = self.transfer_to_spot(transfer_amt)
+            if res and "tranId" in res:
+                self.compound_state["total_transferred_to_spot"] = self.compound_state.get("total_transferred_to_spot", 0.0) + transfer_amt
+                time.sleep(2)
+
+                # Fetch fresh balance after transfer
+                self.last_account_fetch = 0
+                fresh_acc = self.get_binance_account_payload()
+                new_wallet = float(fresh_acc["account"].get("walletBalance", total_equity - transfer_amt))
+
+                old_cycle = self.compound_state.get("compound_cycle", 1)
+                self.compound_state["compound_cycle"] = old_cycle + 1
+                self.compound_state["base_equity"] = max(0.50, round(new_wallet, 2))
+                self.compound_state.setdefault("history", []).append({
+                    "cycle": old_cycle,
+                    "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "transferred_to_spot": transfer_amt,
+                    "new_base_equity": self.compound_state["base_equity"],
+                    "realized_profit_pct": round(profit_pct, 1)
+                })
+                self.save_compound_state()
+
+                action_msg = f"🏆 [200% PROFIT SECURED] Transferred ${transfer_amt:.2f} USDT to Spot! Compounding Cycle #{self.compound_state['compound_cycle']} starting with ${self.compound_state['base_equity']:.2f} Equity."
+                logger.info(action_msg)
+                self.bot_status["recent_actions"].append(action_msg)
 
     def fetch_bulk_market_data(self):
         """
@@ -344,7 +489,10 @@ class FuturesBasketArbitrageBot:
             # 1. Evaluate Basket Performance & Close All if +30% reached
             self.check_basket_performance()
 
-            # 2. Open new legs for the basket if slots are available (25% margin per leg)
+            # 2. Check 200% Profit Target & Compound Transfer to Spot
+            self.check_compound_growth()
+
+            # 3. Open new legs for the basket if slots are available (25% margin per leg)
             self.evaluate_auto_entries()
 
         except urllib.error.HTTPError as e:
@@ -499,11 +647,15 @@ class FuturesBasketArbitrageBot:
             losses = len([r for r in inc_records if r["income"] < 0]) if inc_records else 11
             win_rate = (wins / (wins + losses)) * 100 if (wins + losses) > 0 else 67.6
 
+            base_eq = float(self.compound_state.get("base_equity", 2.52))
+            cur_eq = round(wallet_bal + unreal_pnl, 2)
+            profit_pct = round(((cur_eq - base_eq) / max(0.01, base_eq)) * 100.0, 1)
+
             self.cached_account_payload = {
                 "status": "success",
                 "timestamp": int(now * 1000),
                 "account": {
-                    "totalEquity": round(wallet_bal + unreal_pnl, 2),
+                    "totalEquity": cur_eq,
                     "walletBalance": round(wallet_bal, 2),
                     "availableBalance": round(avail_bal, 2),
                     "marginUsed": round(margin_used, 2),
@@ -513,6 +665,13 @@ class FuturesBasketArbitrageBot:
                     "winTrades": wins,
                     "loseTrades": losses,
                     "totalTrades": len(inc_records)
+                },
+                "compoundInfo": {
+                    "baseEquity": round(base_eq, 2),
+                    "targetEquity200Pct": round(base_eq * 3.0, 2),
+                    "currentProfitPct": profit_pct,
+                    "compoundCycle": self.compound_state.get("compound_cycle", 1),
+                    "totalTransferredToSpot": round(self.compound_state.get("total_transferred_to_spot", 0.0), 2)
                 },
                 "activePositions": active_positions,
                 "incomeRecords": inc_records
