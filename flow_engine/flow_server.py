@@ -223,9 +223,9 @@ class FuturesBasketArbitrageBot:
 
     def check_basket_performance(self):
         """
-        Evaluates Collective Basket Unrealized PnL:
-        - If total basket ROI >= +30.0% (or any position >= +30.0%) -> CLOSE ALL & START NEW!
-        - If total basket ROI <= -25.0% -> CLOSE ALL to cut drawdown & re-enter fresh setups!
+        Evaluates Collective Basket Unrealized PnL relative to TOTAL WALLET BALANCE:
+        - If Total Unrealized PnL >= +30.0% of Wallet Balance -> CLOSE ALL & START NEW!
+        - If Total Unrealized PnL <= -25.0% of Wallet Balance -> CLOSE ALL to reset drawdown!
         """
         acc_payload = self.get_binance_account_payload()
         active_pos = acc_payload.get("activePositions", [])
@@ -233,20 +233,25 @@ class FuturesBasketArbitrageBot:
         if not active_pos or len(active_pos) == 0:
             return
 
-        total_margin = sum([p["margin"] for p in active_pos])
-        total_unreal_pnl = sum([p["unrealizedPnl"] for p in active_pos])
-        accumulated_basket_roi = (total_unreal_pnl / total_margin * 100) if total_margin > 0 else 0.0
+        wallet_bal = float(acc_payload["account"].get("walletBalance", 2.52))
+        total_unreal_pnl = float(acc_payload["account"].get("unrealizedPnl", 0.0))
+        if total_unreal_pnl == 0.0:
+            total_unreal_pnl = sum([p["unrealizedPnl"] for p in active_pos])
 
-        # STRICT RULE: ONLY trigger Close All when ACCUMULATION of ALL COINS COMBINED reaches >= +30.0% ROI
-        if accumulated_basket_roi >= self.basket_tp_roi:
-            reason = f"+{accumulated_basket_roi:.1f}% ACCUMULATED BASKET PnL (+30% ALL COINS SUM REACHED)"
-            logger.info(f"💰💰💰 [ACCUMULATED BASKET TARGET REACHED] All Coins Total Unrealized PnL: +{accumulated_basket_roi:.1f}% (${total_unreal_pnl:+.4f} USDT on ${total_margin:.2f} Margin) -> EXECUTING CLOSE ALL & START NEW!")
+        # % of Total Wallet Balance (e.g. +$0.75 on $2.50 wallet = +30%)
+        unreal_pct_of_balance = (total_unreal_pnl / wallet_bal * 100.0) if wallet_bal > 0 else 0.0
+
+        # STRICT RULE: ONLY trigger Close All when TOTAL UNREALIZED PnL reaches >= +30.0% OF WALLET BALANCE
+        if unreal_pct_of_balance >= self.basket_tp_roi:
+            reason = f"+{unreal_pct_of_balance:.1f}% WALLET BALANCE TP (Unrealized PnL ${total_unreal_pnl:+.4f} reached +30% of ${wallet_bal:.2f} Balance)"
+            logger.info(f"💰💰💰 [WALLET BALANCE +30% TARGET REACHED] Total Unrealized PnL: ${total_unreal_pnl:+.4f} (+{unreal_pct_of_balance:.1f}% on ${wallet_bal:.2f} Wallet Balance) -> EXECUTING CLOSE ALL & START NEW!")
             self.close_all_positions(reason=reason)
             return
 
-        elif accumulated_basket_roi <= self.basket_sl_roi:
-            logger.info(f"🛑 [BASKET SL CUTOFF] Basket Drawdown: {accumulated_basket_roi:.1f}% -> EXECUTING CLOSE ALL TO RESET!")
-            self.close_all_positions(reason=f"BASKET SL CUTOFF ({accumulated_basket_roi:.1f}%)")
+        elif unreal_pct_of_balance <= self.basket_sl_roi:
+            reason = f"WALLET DRAWDOWN SL ({unreal_pct_of_balance:.1f}%)"
+            logger.info(f"🛑 [WALLET DRAWDOWN SL CUTOFF] Drawdown: {unreal_pct_of_balance:.1f}% -> EXECUTING CLOSE ALL TO RESET!")
+            self.close_all_positions(reason=reason)
             return
 
         # Individual position stop loss check (-0.70% price move)
