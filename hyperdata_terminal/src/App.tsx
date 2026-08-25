@@ -106,26 +106,10 @@ export function App() {
       ]);
 
       if (accRes.account) {
-        setAccount((prev) => ({
-          ...accRes.account,
-          unrealizedPnl: prev.unrealizedPnl !== 0 ? prev.unrealizedPnl : accRes.account.unrealizedPnl,
-          totalEquity: prev.totalEquity !== DEFAULT_ACCOUNT.totalEquity ? prev.totalEquity : accRes.account.totalEquity,
-        }));
+        setAccount(accRes.account);
         
         if (accRes.activePositions) {
-          const newPositions = accRes.activePositions;
-
-          setActivePositions((prev) => {
-            if (prev.length !== newPositions.length) return newPositions;
-            const prevSymbols = prev.map((p) => p.symbol).sort().join(',');
-            const nextSymbols = newPositions.map((p) => p.symbol).sort().join(',');
-            if (prevSymbols !== nextSymbols) return newPositions;
-            
-            return prev.map((p) => {
-              const matched = newPositions.find((np) => np.symbol === p.symbol);
-              return matched ? { ...matched, markPrice: p.markPrice, unrealizedPnl: p.unrealizedPnl, unrealizedPnlPct: p.unrealizedPnlPct } : p;
-            });
-          });
+          setActivePositions(accRes.activePositions);
         }
 
         if (accRes.incomeRecords && accRes.incomeRecords.length > 0) {
@@ -134,13 +118,7 @@ export function App() {
       }
 
       if (coinsRes && coinsRes.length > 0) {
-        setData((prev) => {
-          if (prev.length === 0) return coinsRes;
-          return coinsRes.map((c) => {
-            const cur = prev.find((p) => p.symbol === c.symbol);
-            return cur ? { ...c, current_price: cur.current_price, price_change_24h: cur.price_change_24h } : c;
-          });
-        });
+        setData(coinsRes);
       }
     } catch (e) {}
   };
